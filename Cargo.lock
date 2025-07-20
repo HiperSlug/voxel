@@ -4234,6 +4234,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bevy",
+ "bit_utils",
  "num-traits",
 ]
 
