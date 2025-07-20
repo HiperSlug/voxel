@@ -1,75 +1,85 @@
 #![allow(dead_code)]
 
-use std::ops::{BitAnd, BitOr, BitOrAssign, Not, Shl, Shr, Sub};
-use traits::*;
+use num_traits::PrimInt;
 
-pub mod traits {
-    pub trait BitSize {
-        const BIT_SIZE: usize;
-    }
-
-    pub trait Zero {
-        const ZERO: Self;
-    }
-    pub trait One {
-        const ONE: Self;
-    }
-
-    macro_rules! impl_traits {
-		($($t:ty), *) => {
-			$(
-				impl BitSize for $t {
-					const BIT_SIZE: usize = ::core::mem::size_of::<Self>() * 8;
-				}
-
-				impl Zero for $t {
-					const ZERO: Self = 0 as $t;
-				}
-
-				impl One for $t {
-					const ONE: Self = 1 as $t;
-				}
-			)*
-		};
-	}
-
-    impl_traits!(u8, u16, u32, u64, u128, usize);
+pub trait BitSize: Sized {
+    const BIT_SIZE: usize = ::core::mem::size_of::<Self>() * 8;
 }
+
+macro_rules! impl_bit_size {
+    ($($t:ty), *) => {
+        $(
+            impl BitSize for $t {}
+        )*
+    };
+}
+
+impl_bit_size!(u8, u16, u32, u64, u128, usize);
 
 #[derive(Clone, Debug)]
 pub struct PackedBits<I> {
     data: Vec<I>,
     bits_per: usize,
+    // Memory safety depends on count being unchanged
     count: usize,
-    base_mask: I,
+    max_and_mask: I,
 }
 
-impl<I> PackedBits<I>
-where
-    I: BitSize
-        + One
-        + Zero
-        + Shl<usize, Output = I>
-        + Shr<usize, Output = I>
-        + BitAnd<Output = I>
-        + BitOrAssign
-        + BitOr<I, Output = I>
-        + Sub<I, Output = I>
-        + Not<Output = I>
-        + Clone
-        + Copy,
-{
-    pub fn bits_per(&self) -> usize {
-        self.bits_per
+impl<I: PrimInt + BitSize> PackedBits<I> {
+    /// # Safety
+    /// Ensure any removed bits didnt have meaningful data.
+    /// Ensure that bits_per < I::BIT_SIZE and bits_per > 0
+    pub unsafe fn set_bits_per(&mut self, bits_per: usize) {
+        let mut new_self = Self::new(bits_per, self.count);
+
+        for (idx, val) in self.iter().enumerate() {
+            new_self.set(idx, val);
+        }
+
+        *self = new_self;
     }
 
-    pub fn count(&self) -> usize {
-        self.count
+    pub fn increase_bits_per(&mut self, amount: usize) {
+        let bits_per = self.bits_per + amount;
+        
+        assert!(
+            bits_per > 0 && bits_per < I::BIT_SIZE,
+            "bits_per {} out of bounds 1..{}",
+            bits_per,
+            I::BIT_SIZE - 1
+        );
+
+        unsafe { self.set_bits_per(bits_per) }
     }
+
+    pub fn increment(&mut self) {
+        self.increase_bits_per(1);
+    }
+
+    pub fn decrease_bits_per(&mut self, amount: usize) {
+        let bits_per = self.bits_per - amount;
+
+        assert_ne!(bits_per, 0, "cannot decrease bits_per to zero");
+
+        let new_max = self.max_and_mask >> amount;
+        for val in self.iter() {
+            assert!(val <= new_max);
+        }
+
+        unsafe { self.set_bits_per(bits_per) };
+    }
+
+    pub fn decrement(&mut self) {
+        self.decrease_bits_per(1)
+    }
+
+    pub fn bits_per(&self) -> usize { self.bits_per }
+
+    pub fn count(&self) -> usize { self.count }
 
     /// # Panics
-    /// When ![1..I::BIT_SIZE].contains(bits_per)
-    /// When (bits_per * count > usize::MAX)
+    /// When bits_per is 0 or greater than I:BIT_SIZE
+    /// When 'bits_per * count > usize::MAX'
     pub fn new(bits_per: usize, count: usize) -> Self {
         assert!(
             bits_per > 0 && bits_per < I::BIT_SIZE,
@@ -83,18 +93,18 @@ where
             .expect("bits_per * count overflow");
         let data_len = (total_bits + I::BIT_SIZE - 1) / I::BIT_SIZE;
 
-        let base_mask = (I::ONE << bits_per) - I::ONE;
+        let max_and_mask = (I::one() << bits_per) - I::one();
 
         Self {
-            data: vec![I::ZERO; data_len],
+            data: vec![I::zero(); data_len],
             bits_per,
             count,
-            base_mask,
+            max_and_mask,
         }
     }
 
     /// # Panics
-    /// When (index < self.count)
+    /// When 'index < self.count'
     pub fn get(&self, index: usize) -> I {
         assert!(
             index < self.count,
@@ -107,7 +117,7 @@ where
     }
 
     /// # Safety
-    /// ensure (index < self.count)
+    /// Ensure 'index < self.count'
     #[inline(always)]
     pub unsafe fn get_unchecked(&self, index: usize) -> I {
         let global_index = index * self.bits_per;
@@ -122,15 +132,14 @@ where
         let bits_to_end = I::BIT_SIZE - local_index;
         if self.bits_per > bits_to_end {
             let next_word = self.data[vec_index + 1];
-            value |= next_word << bits_to_end;
+            value = value | next_word << bits_to_end;
         }
 
-        let mask = self.base_mask;
-        value & mask
+        value & self.max_and_mask
     }
 
     /// # Panics
-    /// When (index < self.count)
+    /// When 'index < self.count'
     pub fn set(&mut self, index: usize, data: I) -> &mut Self {
         assert!(
             index < self.count,
@@ -141,7 +150,9 @@ where
 
         unsafe { self.set_unchecked(index, data) }
     }
-
+    
+    /// # Safety
+    /// Ensure 'index < self.count'
     #[inline(always)]
     pub unsafe fn set_unchecked(&mut self, index: usize, data: I) -> &mut Self {
         let global_index = index * self.bits_per;
@@ -151,14 +162,14 @@ where
 
         let word = &mut self.data[vec_index];
 
-        let mask = self.base_mask << local_index;
+        let mask = self.max_and_mask << local_index;
 
         *word = (*word & !mask) | ((data << local_index) & mask);
 
         let bits_to_end = I::BIT_SIZE - local_index;
         if self.bits_per > bits_to_end {
             let spill = self.bits_per - bits_to_end;
-            let next_mask = (I::ONE << spill) - I::ONE;
+            let next_mask = (I::one() << spill) - I::one();
 
             let next_word = &mut self.data[vec_index + 1];
             let shifted = data >> bits_to_end;
@@ -168,12 +179,9 @@ where
 
         self
     }
-
+    
     pub fn iter(&self) -> impl Iterator<Item = I> + '_ {
-        (0..self.count).map(|idx| self.get(idx))
-    }
-
-    pub fn iter_unchecked(&self) -> impl Iterator<Item = I> + '_ {
+        // This is safe because count is immutable and data is initalized with the right amount of space for count
         (0..self.count).map(|idx| unsafe { self.get_unchecked(idx) })
     }
 }
@@ -186,9 +194,60 @@ mod test {
     const BIG_NUM: usize = 2usize.pow(15);
 
     #[test]
+    fn bit_spill() {
+        let mut packed = PackedBits::<u8>::new(5, 2);
+        let raw = 0b10101;
+        packed.set(1, raw);
+        let result = packed.get(1);
+        assert_eq!(result, raw);
+    }
+
+    #[test]
+    #[should_panic]
+    fn decrease_to_zero() {
+        let mut packed = PackedBits::<usize>::new(5, 0);
+        packed.decrease_bits_per(5);
+    }
+
+    #[test]
+    #[should_panic]
+    fn increase_past_size() {
+        let mut packed = PackedBits::<u8>::new(5, 0);
+        packed.increase_bits_per(3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn remove_significant_data() {
+        let mut packed = PackedBits::<usize>::new(5, 1);
+        packed.set(0, 0b10000);
+        packed.decrement();
+    }
+
+    #[test]
+    fn increment() {
+        let mut packed = PackedBits::<usize>::new(5, 0);
+        packed.increment();
+        assert_eq!(packed.bits_per, 6)
+    }
+
+    #[test]
+    fn decrement() {
+        let mut packed = PackedBits::<usize>::new(5, 0);
+        packed.decrement();
+        assert_eq!(packed.bits_per, 4)
+    }
+
+    #[test]
     fn zero_count() {
         let packed = PackedBits::<usize>::new(8, 0);
         assert_eq!(packed.iter().count(), 0);
+    }
+
+    #[test]
+    fn edges() {
+        PackedBits::<usize>::new(usize::BIT_SIZE - 1, 0);
+        PackedBits::<usize>::new(1, 0);
     }
 
     #[test]
@@ -198,19 +257,9 @@ mod test {
     }
 
     #[test]
-    fn almost_too_big() {
-        PackedBits::<usize>::new(usize::BIT_SIZE - 1, 0);
-    }
-
-    #[test]
     #[should_panic]
     fn too_small() {
         PackedBits::<usize>::new(0, 0);
-    }
-
-    #[test]
-    fn almost_too_small() {
-        PackedBits::<usize>::new(1, 0);
     }
 
     #[test]
@@ -226,40 +275,17 @@ mod test {
     }
 
     #[test]
-    fn data_retention() {
-        eq_result(PackedBits::<usize>::new(4, BIG_NUM));
-        eq_result(PackedBits::<u8>::new(4, BIG_NUM));
-        eq_result(PackedBits::<u64>::new(4, BIG_NUM));
-        eq_result(PackedBits::<u32>::new(4, BIG_NUM));
-        eq_result(PackedBits::<u16>::new(4, BIG_NUM));
-        eq_result(PackedBits::<u128>::new(4, BIG_NUM));
-
-        eq_result(PackedBits::<usize>::new(1, BIG_NUM));
-        eq_result(PackedBits::<u8>::new(7, BIG_NUM));
-
-        eq_result(PackedBits::<usize>::new(3, 1));
+    fn data_retention_num_types() {
+        data_retention(PackedBits::<u8>::new(4, BIG_NUM));
+        data_retention(PackedBits::<u16>::new(4, BIG_NUM));
+        data_retention(PackedBits::<u32>::new(4, BIG_NUM));
+        data_retention(PackedBits::<u64>::new(4, BIG_NUM));
+        data_retention(PackedBits::<u128>::new(4, BIG_NUM));
+        data_retention(PackedBits::<usize>::new(4, BIG_NUM));
     }
 
-    fn eq_result<I>(mut packed: PackedBits<I>)
-    where
-        I: BitSize
-            + One
-            + Zero
-            + Shl<usize, Output = I>
-            + Shr<usize, Output = I>
-            + BitAnd<Output = I>
-            + BitOrAssign
-            + BitOr<I, Output = I>
-            + Sub<I, Output = I>
-            + Not<Output = I>
-            + Clone
-            + Copy
-            + From<u8>
-            + PartialEq
-            + Eq
-            + Debug,
-    {
-        let mut raw = vec![I::ZERO; packed.count];
+    fn data_retention<I: PrimInt + BitSize + From<u8> + Debug>(mut packed: PackedBits<I>) {
+        let mut raw = vec![I::zero(); packed.count];
 
         let max = 1usize << packed.bits_per;
 
