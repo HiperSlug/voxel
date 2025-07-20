@@ -48,3 +48,24 @@ where
 	/// Wrapping values over MAX back to MIN
 	fn wrapped_new(input: Self::WrapInput) -> Self;
 }
+
+/// A trait for WrapBoundInt that provides a default wrap_value function
+pub trait WrapBoundIntExt : WrapBoundInt
+where
+	Self::Inner: PrimInt + Copy + TryFrom<i64> + Into<i64> + Debug,
+	Self::WrapInput: Into<i64>,
+{
+	fn wrap_value(input: Self::WrapInput) -> Self::Inner {
+		let diff: i64 = Self::difference().into();
+		let input: i64 = input.into();
+		let wrapped = ((input % diff) + diff) % diff;
+		wrapped.try_into().unwrap_or_else(|_| panic!("Wrapping failed"))
+	}
+}
+
+impl<T> WrapBoundIntExt for T
+where
+	T: WrapBoundInt,
+	T::Inner: PrimInt + Copy + TryFrom<i64> + Into<i64> + Debug,
+	T::WrapInput: Into<i64>,
+{}
