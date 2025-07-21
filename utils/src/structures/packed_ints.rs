@@ -28,12 +28,12 @@ impl<I: FullInt> PackedInts<I> {
     ///
     /// # Error
     /// - 'Err(PackedIntsError::ZeroBitsPer)' when 'bits_per == 0'
-    /// - 'Err(PackedIntsError::MaxedBitsPer)' when 'bits_per > Self::MAX_BITS_PER'
+    /// - 'Err(PackedIntsError::MaxedBitsPer)' when 'bits_per >= Self::MAX_BITS_PER'
     pub fn new(bits_per: usize, count: usize) -> Result<Self, PackedIntsError> {
         if bits_per == 0 {
             return Err(PackedIntsError::ZeroBitsPer);
         }
-        if bits_per > Self::MAX_BITS_PER {
+        if bits_per >= Self::MAX_BITS_PER {
             return Err(PackedIntsError::MaxedBitsPer(bits_per, Self::MAX_BITS_PER));
         }
 
@@ -241,7 +241,7 @@ mod test {
 
         packed.index_map(map);
 
-        for (value, index) in packed.iter().enumerate() {
+        for (index, value) in packed.iter().enumerate() {
             assert_eq!(value, map(index))
         }
     }
@@ -268,14 +268,14 @@ mod test {
             .decrement_bits_per()
             .unwrap_err();
 
-        PackedInts::<usize>::new(PackedInts::<usize>::MAX_BITS_PER, 0)
+        PackedInts::<usize>::new(PackedInts::<usize>::MAX_BITS_PER - 1, 0)
             .unwrap()
             .increment_bits_per()
             .unwrap_err();
 
         PackedInts::<usize>::new(0, 0).unwrap_err();
 
-        PackedInts::<usize>::new(PackedInts::<usize>::MAX_BITS_PER + 1, 0).unwrap_err();
+        PackedInts::<usize>::new(PackedInts::<usize>::MAX_BITS_PER, 0).unwrap_err();
     }
 
     #[test]
@@ -317,7 +317,7 @@ mod test {
     }
 
     fn data_retention<I: FullInt>() {
-        let mut packed = PackedInts::<I>::new(8, 64).unwrap();
+        let mut packed = PackedInts::<I>::new(4, 64).unwrap();
         let mut raw = vec![I::zero(); packed.count];
 
         let max = packed.max();
