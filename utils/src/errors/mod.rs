@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-#[error("value {value} is out of bounds {lower}..{upper}")]
+#[error("value {value} is out of bounds [{lower}..{upper})")]
 pub struct BoundsError<T: FullInt> {
     pub value: T,
     /// Exclusive

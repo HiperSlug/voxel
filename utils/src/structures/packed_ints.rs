@@ -158,7 +158,7 @@ impl<I: FullInt> PackedInts<I> {
         Ok(())
     }
 
-    /// The index range from 0..count
+    /// The index range from [0..count)
     pub fn range(&self) -> Range<usize> {
         0..self.count
     }
