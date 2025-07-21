@@ -1,6 +1,6 @@
 use std::ops::Range;
 use num_traits::PrimInt;
-use crate::traits::bit_len::BitLen;
+use crate::BitLen;
 
 #[derive(Clone, Debug)]
 pub struct PackedInts<I> {
