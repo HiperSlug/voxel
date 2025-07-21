@@ -34,20 +34,20 @@ pub mod coord {
         fn into_inner(self) -> Self::Inner {
             self.0
         }
-
-        fn wrap(inner: Self::Inner) -> Self {
-            LocalCoord(inner)
-        }
     }
 
     impl BoundInt for LocalCoord {
         const MAX_EXCLUSIVE: Self::Inner = CHUNK_LENGTH;
         const MIN_INCLUSIVE: Self::Inner = 0;
+
+        fn bounded_wrap(inner: Self::Inner) -> Result<Self, utils::BoundsError<Self::Inner>> {
+            Self::validate_value(inner).map(|_| Self(inner))
+        }
     }
 
     impl CyclicBoundInt for LocalCoord { }
 
-    default_transparent_ops!(LocalCoord);
+    default_transparent_ops!(LocalCoord, bounded_wrap);
 }
 
 /// Position in local chunk space
