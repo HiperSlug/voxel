@@ -1,74 +1,81 @@
-use super::CHUNK_LENGTH;
+pub use coord::LocalCoord;
+pub use position::VLocalPos;
 
-pub use coord::*;
-pub use position::*;
 
-/// Bounded 0..CHUNK_LENGTH coordinate structure for local chunk coordinates
+/// Side length of standard chunks
+pub const CHUNK_LENGTH: u8 = 16;
+
+/// Number of voxels in a standard chunk
+///
+/// Equal to CHUNK_LENGTH.pow(3)
+pub const VOXELS_IN_CHUNK: u16 = (CHUNK_LENGTH as u16).pow(3);
+
+/// Bounded [0..CHUNK_LENGTH) coordinate
 pub mod coord {
-	use utils::bound_int::WrapBoundIntExt;
-	use utils::WrapBoundInt;
-	use utils::PrimWrapper;
-	use utils::BoundInt;
-	use utils::prim_wrapper_default_ops;
+    use utils::{Wrapper, BoundInt, CyclicBoundInt};
+    use utils::default_transparent_ops;
 
-	use super::CHUNK_LENGTH;
+    use super::CHUNK_LENGTH;
 
-	/// Wrapper structure that binds a u8 between 0..CHUNK_LENGTH
-	/// 
-	/// # Panic
-	/// Operations that create a LocalCoord that leaves the bounds panic
-	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-	pub struct LocalCoord(u8);
+    /// Wrapper structure that binds a u8 between [0..CHUNK_LENGTH)
+    /// 
+    /// # Bounds
+    /// Use 'bounded_wrap(inner)' or 'normalized_wrap(inner)' to create bounded variants.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+    pub struct LocalCoord(u8);
 
-	impl PrimWrapper for LocalCoord {
-		type Inner = u8;
+    impl Wrapper for LocalCoord {
+        type Inner = u8;
 
-		fn new(inner: Self::Inner) -> Self {
-			Self(inner)
-		}
+        fn inner(&self) -> &Self::Inner {
+            &self.0
+        }
 
-		fn inner(&self) -> Self::Inner { self.0 }
-	}
+        fn into_inner(self) -> Self::Inner {
+            self.0
+        }
 
-	prim_wrapper_default_ops!(LocalCoord, u8);
+        fn wrap(inner: Self::Inner) -> Self {
+            LocalCoord(inner)
+        }
+    }
 
-	impl BoundInt for LocalCoord {
-		const MAX: Self::Inner = CHUNK_LENGTH as Self::Inner;
-		const MIN: Self::Inner = 0;
-	}
+    impl BoundInt for LocalCoord {
+        const MAX_EXCLUSIVE: Self::Inner = CHUNK_LENGTH;
+        const MIN_INCLUSIVE: Self::Inner = 0;
+    }
 
-	impl WrapBoundInt for LocalCoord {
-		type WrapInput = i8;
+    impl CyclicBoundInt for LocalCoord { }
 
-		fn wrapped_new(input: Self::WrapInput) -> Self {
-			Self::bounded_new(Self::wrap_value(input))
-		}
-	}
+    default_transparent_ops!(LocalCoord);
 }
 
-/// Local space position
+/// Position in local chunk space
 pub mod position {
-	use super::LocalCoord;
+    use super::{CHUNK_LENGTH, LocalCoord};
+    use utils::Wrapper;
 
-	/// Representation of a voxels position in local chunk space relative to the -x, -y, -z corner of the chunk
-	/// 
-	/// Chunk space is constrained from 0..CHUNK_LENGTH
-	/// 
-	/// Internally reprented by bound LocalCoords
-	#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-	pub struct VLocalPos {
-		pub x: LocalCoord,
-		pub y: LocalCoord,
-		pub z: LocalCoord,
-	}
+    /// Representation of a voxels position in local chunk space relative to the -x, -y, -z corner of the chunk
+    ///
+    /// Chunk space is constrained from [0..CHUNK_LENGTH)
+    ///
+    /// Represented by 3 bound LocalCoords
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    pub struct VLocalPos {
+        pub x: LocalCoord,
+        pub y: LocalCoord,
+        pub z: LocalCoord,
+    }
 
-	impl VLocalPos {
-		pub fn new(x: LocalCoord, y: LocalCoord, z: LocalCoord) -> Self {
-			Self {
-				x,
-				y,
-				z,
-			}
-		}
-	}
+    impl VLocalPos {
+        pub fn new(x: LocalCoord, y: LocalCoord, z: LocalCoord) -> Self {
+            Self { x, y, z }
+        }
+
+        pub fn flat_index(&self) -> usize {
+            *self.x.inner() as usize
+                + *self.y.inner() as usize * CHUNK_LENGTH as usize
+                + *self.z.inner() as usize * (CHUNK_LENGTH as usize).pow(2)
+        }
+    }
 }
