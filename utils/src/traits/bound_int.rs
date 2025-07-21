@@ -36,7 +36,7 @@ where
     /// # Returns
     /// - 'Ok(Self)'
     /// - 'Err(OutOfBoundsError)' - if value is out of bounds
-    /// 
+    ///
     /// # Example
     /// 'fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>> {
     ///     Self::validate_value(inner).map(|_| Self(inner))
