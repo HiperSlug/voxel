@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.98"
 bevy = { workspace = true }
-bit_utils = { path = "../bit_utils" }
 utils = { path = "../utils" }
 num-traits = "0.2.19"
 
