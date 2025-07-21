@@ -10,7 +10,6 @@
 pub trait Wrapper {
     type Inner;
 
-    fn wrap(inner: Self::Inner) -> Self;
     fn inner(&self) -> &Self::Inner;
     fn into_inner(self) -> Self::Inner;
 }
@@ -23,7 +22,7 @@ pub trait Wrapper {
 /// - `$method` - The method name from the trait (e.g., `add`)
 #[macro_export]
 macro_rules! transparent_ops {
-    ($wrapper:ident, $trait:ident, $method:ident) => {
+    ($wrapper:ident, $trait:ident, $method:ident, $constructor:ident) => {
         impl std::ops::$trait<<$wrapper as $crate::Wrapper>::Inner> for $wrapper
         where
             $wrapper: $crate::Wrapper,
@@ -33,7 +32,7 @@ macro_rules! transparent_ops {
             type Output = Self;
 
             fn $method(self, rhs: <$wrapper as $crate::Wrapper>::Inner) -> Self::Output {
-                Self::wrap(self.into_inner().$method(rhs))
+                Self::$constructor(self.into_inner().$method(rhs))
             }
         }
 
@@ -46,7 +45,7 @@ macro_rules! transparent_ops {
             type Output = Self;
 
             fn $method(self, rhs: Self) -> Self::Output {
-                Self::wrap(self.into_inner().$method(rhs.into_inner()))
+                Self::$constructor(self.into_inner().$method(rhs.into_inner()))
             }
         }
     };
@@ -65,12 +64,12 @@ macro_rules! transparent_ops {
 /// - `$wrapper` - The target type
 #[macro_export]
 macro_rules! default_transparent_ops {
-    ($wrapper:ident) => {
-        $crate::transparent_ops!($wrapper, Add, add);
-        $crate::transparent_ops!($wrapper, Sub, sub);
-        $crate::transparent_ops!($wrapper, Mul, mul);
-        $crate::transparent_ops!($wrapper, Div, div);
-        $crate::transparent_ops!($wrapper, Rem, rem);
+    ($wrapper:ident, $constructor:ident) => {
+        $crate::transparent_ops!($wrapper, Add, add, $constructor);
+        $crate::transparent_ops!($wrapper, Sub, sub, $constructor);
+        $crate::transparent_ops!($wrapper, Mul, mul, $constructor);
+        $crate::transparent_ops!($wrapper, Div, div, $constructor);
+        $crate::transparent_ops!($wrapper, Rem, rem, $constructor);
     };
 }
 
@@ -92,17 +91,19 @@ pub mod tests {
         fn into_inner(self) -> Self::Inner {
             self.0
         }
+    }
 
-        fn wrap(inner: Self::Inner) -> Self {
-            MyWrapper(inner)
+    impl MyWrapper {
+        fn new(inner: usize) -> Self {
+            Self(inner)
         }
     }
 
-    default_transparent_ops!(MyWrapper);
+    default_transparent_ops!(MyWrapper, new);
 
     #[test]
     fn transparent_operations() {
-        let wrapped = MyWrapper::wrap(64usize);
+        let wrapped = MyWrapper(64);
 
         let add = *wrapped.add(16).inner();
         assert_eq!(add, 64 + 16);
@@ -122,21 +123,21 @@ pub mod tests {
 
     #[test]
     fn ops_with_self() {
-        let wrapped = MyWrapper::wrap(64usize);
+        let wrapped = MyWrapper(64);
 
-        let add = *wrapped.add(MyWrapper::wrap(16)).inner();
+        let add = *wrapped.add(MyWrapper(16)).inner();
         assert_eq!(add, 64 + 16);
 
-        let sub = *wrapped.sub(MyWrapper::wrap(16)).inner();
+        let sub = *wrapped.sub(MyWrapper(16)).inner();
         assert_eq!(sub, 64 - 16);
 
-        let mul = *wrapped.mul(MyWrapper::wrap(16)).inner();
+        let mul = *wrapped.mul(MyWrapper(16)).inner();
         assert_eq!(mul, 64 * 16);
 
-        let div = *wrapped.div(MyWrapper::wrap(16)).inner();
+        let div = *wrapped.div(MyWrapper(16)).inner();
         assert_eq!(div, 64 / 16);
 
-        let rem = *wrapped.rem(MyWrapper::wrap(16)).inner();
+        let rem = *wrapped.rem(MyWrapper(16)).inner();
         assert_eq!(rem, 64 % 16);
     }
 }

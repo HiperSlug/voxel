@@ -5,7 +5,7 @@ use crate::{BoundsError, FullInt, Wrapper};
 /// # Associated Constants
 /// 'MAX_EXCLUSIVE: Self::Inner' - Exclusive upper bound
 /// 'MIN: Self::Inner' - Inclusive lower bound
-pub trait BoundInt: Wrapper + Sized
+pub trait BoundInt: Sized + Wrapper
 where
     Self::Inner: FullInt,
 {
@@ -34,18 +34,22 @@ where
     /// Creates a bound wrapper around a base type 'Self::Inner'
     ///
     /// # Returns
-    /// 'Ok(Self)'
-    /// 'Err(OutOfBoundsError)' - if value is out of bounds
-    fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>> {
-        Self::is_value_out_of_bounds(inner).map(|_| Self::wrap(inner))
-    }
+    /// - 'Ok(Self)'
+    /// - 'Err(OutOfBoundsError)' - if value is out of bounds
+    /// 
+    /// # Example
+    /// 'fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>> {
+    ///     Self::validate_value(inner).map(|_| Self(inner))
+    /// }'
+    fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>>;
 
     /// Returns if the value is out of bounds
     ///
     /// # Returns
-    /// 'Err(OutOfBoundsError)' - if value is out of bounds
-    fn is_value_out_of_bounds(inner: Self::Inner) -> Result<(), BoundsError<Self::Inner>> {
-        if inner >= Self::max() && inner < Self::min() {
+    /// 'Ok(_)' if value is in bounds
+    /// 'Err(OutOfBoundsError)' if value is out of bounds
+    fn validate_value(inner: Self::Inner) -> Result<(), BoundsError<Self::Inner>> {
+        if inner >= Self::max() || inner < Self::min() {
             Err(BoundsError {
                 value: inner,
                 upper: Self::max(),
@@ -56,9 +60,9 @@ where
         }
     }
 
-    /// Alias for Self::is_value_out_of_bounds(*self.inner())
-    fn is_out_of_bounds(&self) -> Result<(), BoundsError<Self::Inner>> {
-        Self::is_value_out_of_bounds(*self.inner())
+    /// Alias for Self::validate_value(*self.inner())
+    fn validate(&self) -> Result<(), BoundsError<Self::Inner>> {
+        Self::validate_value(*self.inner())
     }
 }
 
@@ -72,7 +76,7 @@ pub trait CyclicBoundInt: BoundInt<Inner: FullInt> {
     /// Values below 'MIN_INCLUSIVE' wrap to 'MAX_EXCLUSIVE - 1'
     fn normalized_wrap(inner: Self::Inner) -> Self {
         let cycled = Self::normalize(inner);
-        Self::wrap(cycled)
+        Self::bounded_wrap(cycled).unwrap()
     }
 
     /// Returns 'Self::Inner' known to be in bounds
@@ -109,14 +113,15 @@ mod tests {
         fn into_inner(self) -> Self::Inner {
             self.0
         }
-        fn wrap(inner: Self::Inner) -> Self {
-            Self(inner)
-        }
     }
 
     impl BoundInt for MyBoundInt {
         const MAX_EXCLUSIVE: Self::Inner = 11;
         const MIN_INCLUSIVE: Self::Inner = -11;
+
+        fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>> {
+            Self::validate_value(inner).map(|_| Self(inner))
+        }
     }
 
     impl CyclicBoundInt for MyBoundInt {}
