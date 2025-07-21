@@ -12,6 +12,17 @@ pub struct BoundsError<T: FullInt> {
     pub lower: T,
 }
 
+impl<T: FullInt> BoundsError<T> {
+    pub fn from_bounds(value: T) -> Self {
+        Self {
+            value,
+            upper: T::max_value(),
+            lower: T::min_value(),
+        }
+    }
+}
+
+
 #[derive(Debug, Error)]
 pub enum PackedIntsError {
     /// bits_per was zero
@@ -24,6 +35,10 @@ pub enum PackedIntsError {
     #[error("value {0} does not fin in the new bit width")]
     TruncateSignificant(usize),
     /// index out of range [0..count)
-    #[error("index out of bounds: index: {0}, max: {1}")]
-    IndexOutOfBounds(usize, usize),
+    #[error("{0}")]
+    IndexOutOfBounds(IndexOutOfBounds),
 }
+
+#[derive(Debug, Error)]
+#[error("index out of bounds - index: {0}, max: {1}")]
+pub struct IndexOutOfBounds(pub usize, pub usize);

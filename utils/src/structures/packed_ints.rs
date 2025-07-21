@@ -1,4 +1,4 @@
-use crate::{FullInt, PackedIntsError};
+use crate::{errors::IndexOutOfBounds, FullInt, PackedIntsError};
 use std::ops::Range;
 
 #[derive(Clone, Debug)]
@@ -102,7 +102,7 @@ impl<I: FullInt> PackedInts<I> {
     /// 'Err(PackedIntsError::IndexOutOfBounds)' when 'index >= self.count'
     pub fn get(&self, index: usize) -> Result<I, PackedIntsError> {
         if index >= self.count {
-            return Err(PackedIntsError::IndexOutOfBounds(index, self.count));
+            return Err(PackedIntsError::IndexOutOfBounds(IndexOutOfBounds(index, self.count)));
         }
 
         let global_index = index * self.bits_per;
@@ -129,7 +129,7 @@ impl<I: FullInt> PackedInts<I> {
     /// 'Err(PackedIntsError::IndexOutOfBounds)' when 'index >= self.count'
     pub fn set(&mut self, index: usize, data: I) -> Result<(), PackedIntsError> {
         if index >= self.count {
-            return Err(PackedIntsError::IndexOutOfBounds(index, self.count));
+            return Err(PackedIntsError::IndexOutOfBounds(IndexOutOfBounds(index, self.count)));
         }
 
         let data = data & self.max_and_mask;
