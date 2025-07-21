@@ -1,5 +1,5 @@
-use anyhow::{ensure, Result};
-use crate::{FullInt, OutOfBoundsError, Wrapper};
+use crate::{OutOfBounds, FullInt, OutOfBoundsError, Wrapper};
+use num_traits::One;
 
 /// Trait for Wrappers around PrimInt that restricts values
 /// 
@@ -30,27 +30,34 @@ where
 	///
 	/// # Returns
 	/// 'Ok(Self)'
-	/// 'Err(OutOfBoundsError)'
-	fn bounded_wrap(inner: Self::Inner) -> Result<Self> {
-		ensure!(
-			Self::is_value_in_bounds(inner), 
-			OutOfBoundsError {
+	/// 'Err(OutOfBoundsError)' - if value is out of bounds
+	fn bounded_wrap(inner: Self::Inner) -> Result<Self, OutOfBoundsError<Self::Inner>> {
+		Self::is_value_out_of_bounds(inner).map(|_| Self::wrap(inner))
+	}
+
+	/// Returns if the value is out of bounds
+	/// 
+	/// # Returns
+	/// 'Err(OutOfBoundsError)' - if value is out of bounds
+	fn is_value_out_of_bounds(inner: Self::Inner) -> Result<(), OutOfBoundsError<Self::Inner>> {
+		if inner >= Self::max() {
+			Err(OutOfBoundsError::Over(OutOfBounds {
 				value: inner,
-				max: Self::max(),
-				min: Self::min(),
-			},
-		);
-		Ok(Self::wrap(inner))
+				bound: Self::max() - Self::Inner::one(),
+			}))
+		} else if inner < Self::min() {
+			Err(OutOfBoundsError::Under(OutOfBounds {
+				value: inner,
+				bound: Self::min(),
+			}))
+		} else {
+			Ok(())
+		}
 	}
 
-	/// Alias for inner < Self::max() && inner >= Self::min()
-	fn is_value_in_bounds(inner: Self::Inner) -> bool {
-		inner < Self::max() && inner >= Self::min()
-	}
-
-	/// Alias for Self::is_value_in_bounds(*self.inner())
-	fn is_in_bounds(&self) -> bool {
-		Self::is_value_in_bounds(*self.inner())
+	/// Alias for Self::is_value_out_of_bounds(*self.inner())
+	fn is_out_of_bounds(&self) -> Result<(), OutOfBoundsError<Self::Inner>> {
+		Self::is_value_out_of_bounds(*self.inner())
 	}
 }
 

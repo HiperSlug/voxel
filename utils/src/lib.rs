@@ -7,5 +7,5 @@ pub use traits::wrapper::Wrapper;
 pub use traits::bound_int::{BoundInt, CyclicBoundInt};
 pub use traits::bit_len::BitLen;
 
-pub use errors::OutOfBoundsError;
+pub use errors::{OutOfBoundsError, OutOfBounds};
 

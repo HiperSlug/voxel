@@ -117,4 +117,24 @@ pub mod tests {
 		let rem = *wrapped.rem(16).inner();
 		assert_eq!(rem, 64 % 16);
 	}
+
+	#[test]
+	fn ops_with_self() {
+		let wrapped = MyWrapper::wrap(64usize);
+
+		let add = *wrapped.add(MyWrapper::wrap(16)).inner();
+		assert_eq!(add, 64 + 16);
+
+		let sub = *wrapped.sub(MyWrapper::wrap(16)).inner();
+		assert_eq!(sub, 64 - 16);
+
+		let mul = *wrapped.mul(MyWrapper::wrap(16)).inner();
+		assert_eq!(mul, 64 * 16);
+
+		let div = *wrapped.div(MyWrapper::wrap(16)).inner();
+		assert_eq!(div, 64 / 16);
+
+		let rem = *wrapped.rem(MyWrapper::wrap(16)).inner();
+		assert_eq!(rem, 64 % 16);
+	}
 }

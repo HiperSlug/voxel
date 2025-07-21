@@ -16,5 +16,7 @@ pub enum OutOfBoundsError<T: FullInt> {
 #[error("Value {value}, escaped bound {bound}")]
 pub struct OutOfBounds<T: FullInt> {
 	pub value: T,
+	/// INCLUSIVE
 	pub bound: T,
 }
+
