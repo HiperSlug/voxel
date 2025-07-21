@@ -4,12 +4,17 @@ use crate::FullInt;
 
 
 #[derive(Debug, Error)]
-#[error("Value {value} is out of bounds {min}..{max}")]
-pub struct  OutOfBoundsError<T>
-where 
-	T: FullInt,
-{
+pub enum OutOfBoundsError<T: FullInt> {
+	#[error("out of bounds -- too high -- {0}")]
+	Over(OutOfBounds<T>),
+	#[error("out of bounds -- too low -- {0}")]
+	Under(OutOfBounds<T>),
+}
+
+
+#[derive(Debug, Error)]
+#[error("Value {value}, escaped bound {bound}")]
+pub struct OutOfBounds<T: FullInt> {
 	pub value: T,
-	pub min: T,
-	pub max: T,
+	pub bound: T,
 }
