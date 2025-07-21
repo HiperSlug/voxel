@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display};
-use num_traits::{Num, PrimInt};
+use num_traits::{FromPrimitive, Num, PrimInt, ToPrimitive};
 use crate::BitLen;
 
 /// Trait alias for generic operations on primitive integers
@@ -12,6 +12,8 @@ pub trait FullInt: PrimInt
 	+ Debug
 	+ Display
 	+ BitLen
+	+ FromPrimitive
+	+ ToPrimitive
 {}
 
 impl<T> FullInt for T
@@ -23,5 +25,7 @@ where
 	+ 'static
 	+ Debug
 	+ Display
-	+ BitLen,
+	+ BitLen
+	+ FromPrimitive
+	+ ToPrimitive,
 {}
