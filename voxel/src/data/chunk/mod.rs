@@ -16,7 +16,7 @@ impl Chunk {
         let index = pos.flat_index();
         match self {
             Self::Array(a) => a.get(index),
-            Self::Pallet(p) => p.get(index).unwrap(),
+            Self::Pallet(p) => p.get(index),
         }
     }
 
@@ -24,7 +24,7 @@ impl Chunk {
         let index = pos.flat_index();
         match self {
             Self::Array(a) => a.set(index, voxel),
-            Self::Pallet(p) => p.set(index, voxel).unwrap(),
+            Self::Pallet(p) => p.set(index, voxel),
         }
     }
 }
