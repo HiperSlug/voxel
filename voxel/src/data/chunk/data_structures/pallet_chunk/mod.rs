@@ -24,7 +24,9 @@ pub struct PalletChunk {
 }
 
 impl PalletChunk {
-    const BIT_LIMIT: usize = 6;
+    const BIT_LIMIT: u32 = 6;
+    /// The value before which it would have to be remapped
+    const PALLET_LIMIT: usize = 2usize.pow(Self::BIT_LIMIT) - 1;
 
     /// Creates an empty `PalletChunk` with a assigned `VoxelPallet`
     ///
@@ -39,6 +41,15 @@ impl PalletChunk {
         }
     }
 
+    pub fn filled(voxel: Voxel) -> Self {
+        Self::new(Pallet::new(vec![Variant::new(voxel, VOXELS_IN_CHUNK)]))
+    }
+
+    /// Iterates over every PackedIndex and maps it to a voxel
+    pub fn iter(&self) -> impl Iterator<Item = Voxel> + '_ {
+        self.packed.iter().map(|index| self.get(index))
+    }
+
     /// Returns the Voxel stored at a certain index
     ///
     /// # Panics
@@ -49,8 +60,8 @@ impl PalletChunk {
 
     /// Returns the Variant<Voxel> stored at a certain index
     ///
-    /// # Errors
-    /// - `Err(PackedIntsError::IndexOutOfBounds)` when `index >= self.count`
+    /// # Panics
+    /// If `index >= VOXELS_IN_CHUNK`
     pub fn get_variant(&self, idx: usize) -> &Variant<Voxel> {
         let pallet_idx = self.packed.get(idx);
         self.pallet
@@ -61,8 +72,8 @@ impl PalletChunk {
     /// Sets the Voxel stored at a certain index
     ///
     /// # Returns
-    /// - `true` if this action pushed the chunk over the bit_limit
-    /// 
+    /// - `true` if this action pushed the chunk to the bit_limit
+    ///
     /// # Panics
     /// If `index >= VOXELS_IN_CHUNK`
     pub fn set(&mut self, idx: usize, voxel: Voxel) -> bool {
@@ -93,14 +104,13 @@ impl PalletChunk {
             GetOrInsertResult::Inserted(pallet_idx) => {
                 self.remap(pallet_idx + 1, Remap::Up);
 
-                let req_bits = self.pallet.req_bits();
-                if req_bits > self.packed.bits_per() {
+                if self.pallet.req_bits() > self.packed.bits_per() {
                     self.packed.increment_bits_per().expect("In order to overflow bits_per in a PackedInts<usize> Pallet.len() would need to have 2^(usize::MAX) variants.");
                 }
 
                 self.packed.set(idx, pallet_idx);
 
-                req_bits > Self::BIT_LIMIT 
+                self.pallet.len() >= Self::PALLET_LIMIT
             }
         }
     }

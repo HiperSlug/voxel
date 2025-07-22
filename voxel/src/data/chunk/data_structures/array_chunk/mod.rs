@@ -1,5 +1,5 @@
-use crate::data::voxel::Voxel;
 use crate::data::chunk::VOXELS_IN_CHUNK;
+use crate::data::voxel::Voxel;
 
 pub struct ArrayChunk {
     inner: [Voxel; VOXELS_IN_CHUNK as usize],
@@ -14,6 +14,10 @@ impl Default for ArrayChunk {
 }
 
 impl ArrayChunk {
+    pub fn new(inner: [Voxel; VOXELS_IN_CHUNK as usize]) -> Self {
+        Self { inner }
+    }
+
     pub fn get(&self, index: usize) -> Voxel {
         self.inner[index]
     }
