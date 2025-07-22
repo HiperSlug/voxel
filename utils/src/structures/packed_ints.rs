@@ -1,5 +1,21 @@
-use crate::{FullInt, PackedIntsError, errors::IndexOutOfBounds};
+use crate::FullInt;
 use std::ops::Range;
+
+pub use errors::*;
+
+pub mod errors {
+    use thiserror::Error;
+
+    /// Returned when bits_per exceeded the maximum
+    #[derive(Debug, Error)]
+    #[error("bits_per ({0}) cannot exceed maximum of {1}")]
+    pub struct MaxedBitsPerError(pub usize, pub usize);
+
+    /// Returned when decrementing bits would truncate a value
+    #[derive(Debug, Error)]
+    #[error("value {0} does not fit in the new bit width")]
+    pub struct TruncateError(pub usize);
+}
 
 #[derive(Clone, Debug)]
 pub struct PackedInts<I> {
@@ -19,32 +35,31 @@ pub struct PackedInts<I> {
 }
 
 impl<I: FullInt> PackedInts<I> {
-    /// The max number of bits_per.
-    ///
-    /// Trying to use values over this will return 'PackedIntsError::MaxedBitsPer'
-    pub const MAX_BITS_PER: usize = I::BIT_LEN;
-
     /// Creates an empty collection
     ///
     /// # Errors
-    /// - 'Err(PackedIntsError::ZeroBitsPer)' when 'bits_per == 0'
-    /// - 'Err(PackedIntsError::MaxedBitsPer)' when 'bits_per >= Self::MAX_BITS_PER'
-    pub fn new(bits_per: usize, count: usize) -> Result<Self, PackedIntsError> {
-        if bits_per == 0 {
-            return Err(PackedIntsError::ZeroBitsPer);
-        }
-        if bits_per >= Self::MAX_BITS_PER {
-            return Err(PackedIntsError::MaxedBitsPer(bits_per, Self::MAX_BITS_PER));
+    /// - 'Err(MaxedBitsPerError)' when 'bits_per >= I::BIT_LEN'
+    pub fn new(bits_per: usize, count: usize) -> Result<Self, MaxedBitsPerError> {
+        if bits_per >= I::BIT_LEN {
+            return Err(MaxedBitsPerError(bits_per, I::BIT_LEN));
         }
 
-        let total_bits = bits_per * count;
+        let total_bits = bits_per
+            .checked_mul(count)
+            .expect("bits_per and count too large");
         let data_len = (total_bits + I::BIT_LEN - 1) / I::BIT_LEN;
+
+        let max_and_mask = if bits_per == 0 {
+            I::zero()
+        } else {
+            (I::one() << bits_per) - I::one()
+        };
 
         Ok(Self {
             data: vec![I::zero(); data_len].into_boxed_slice(),
             bits_per,
             count,
-            max_and_mask: (I::one() << bits_per) - I::one(),
+            max_and_mask,
         })
     }
 
@@ -53,13 +68,12 @@ impl<I: FullInt> PackedInts<I> {
     /// Truncates data
     ///
     /// # Errors
-    /// - 'Err(PackedIntsError::ZeroBitsPer)' when 'new_bits_per == 0'
-    /// - 'Err(PackedIntsError::MaxedBitsPer)' when 'new_bits_per > Self::MAX_BITS_PER'
-    pub fn set_bits_per(&mut self, bits_per: usize) -> Result<(), PackedIntsError> {
+    /// - 'Err(MaxedBitsPerError)' when 'bits_per >= I::BIT_LEN'
+    pub fn set_bits_per(&mut self, bits_per: usize) -> Result<(), MaxedBitsPerError> {
         let mut new_self = Self::new(bits_per, self.count)?;
 
         for (idx, val) in self.iter().enumerate() {
-            new_self.set(idx, val).expect("iter() is always in bounds");
+            new_self.set(idx, val);
         }
 
         *self = new_self;
@@ -70,8 +84,8 @@ impl<I: FullInt> PackedInts<I> {
     /// Alias for self.set_bits_per(self.bits_per + 1)
     ///
     /// # Errors
-    /// - 'Err(PackedIntsError::MaxedBitsPer)' when 'self.bits_per + 1 > Self::MAX_BITS_PER'
-    pub fn increment_bits_per(&mut self) -> Result<(), PackedIntsError> {
+    /// - 'Err(MaxedBitsPerError)' when 'bits_per >= I::BIT_LEN'
+    pub fn increment_bits_per(&mut self) -> Result<(), MaxedBitsPerError> {
         self.set_bits_per(self.bits_per + 1)
     }
 
@@ -79,30 +93,40 @@ impl<I: FullInt> PackedInts<I> {
     ///
     /// To force truncation use 'set_bits_per()'
     ///
+    /// When 'bits_per == 0' nothing happens
+    ///
     /// # Errors
-    /// - 'Err(PackedIntsError::ZeroBitsPer)' when 'new_bits_per == 0'
-    /// - 'Err(PackedIntsError::TruncateSignificant)' when this operation would truncate a value
-    pub fn decrement_bits_per(&mut self) -> Result<(), PackedIntsError> {
+    /// - 'Err(TruncateError)' when this operation would truncate a value
+    pub fn decrement_bits_per(&mut self) -> Result<(), TruncateError> {
+        if self.bits_per == 0 {
+            return Ok(());
+        }
+
         let new_max = self.max_and_mask >> 1;
 
-        for (index, val) in self.iter().enumerate() {
-            if val > new_max {
-                return Err(PackedIntsError::TruncateSignificant(index));
+        for index in self.range() {
+            let value = self.get(index);
+            if value > new_max {
+                return Err(TruncateError(index));
             }
         }
 
-        self.set_bits_per(self.bits_per - 1)?;
-
+        self.set_bits_per(self.bits_per - 1)
+            .expect("Decrementing cannot exceed maximum");
         Ok(())
     }
 
     /// Returns the 'data' stored at 'index'
     ///
-    /// # Errors
-    /// 'Err(PackedIntsError::IndexOutOfBounds)' when 'index >= self.count'
-    pub fn get(&self, index: usize) -> Result<I, PackedIntsError> {
-        if index >= self.count {
-            Err(IndexOutOfBounds(index, self.count))?;
+    /// When 'self.bits_per == 0' returns 'I::zero()'
+    ///
+    /// # Panics
+    /// - When 'index' is out of bounds
+    pub fn get(&self, index: usize) -> I {
+        assert!(index < self.count, "index out of bounds");
+
+        if self.bits_per == 0 {
+            return I::zero();
         }
 
         let global_index = index * self.bits_per;
@@ -116,20 +140,26 @@ impl<I: FullInt> PackedInts<I> {
 
         let bits_to_end = I::BIT_LEN - local_index;
         if self.bits_per > bits_to_end {
+            debug_assert!(block_index + 1 < self.data.len());
+
             let next_word = self.data[block_index + 1];
             value = value | next_word << bits_to_end;
         }
 
-        Ok(value & self.max_and_mask)
+        value & self.max_and_mask
     }
 
     /// Sets the value at 'index' to 'data'
     ///
-    /// # Errors
-    /// 'Err(PackedIntsError::IndexOutOfBounds)' when 'index >= self.count'
-    pub fn set(&mut self, index: usize, data: I) -> Result<(), PackedIntsError> {
-        if index >= self.count {
-            Err(IndexOutOfBounds(index, self.count))?;
+    /// When 'self.bits_per == 0' does nothing
+    ///
+    /// # Panics
+    /// - When 'index' is out of bounds
+    pub fn set(&mut self, index: usize, data: I) {
+        assert!(index < self.count, "index out of bounds");
+
+        if self.bits_per == 0 {
+            return;
         }
 
         let data = data & self.max_and_mask;
@@ -150,12 +180,11 @@ impl<I: FullInt> PackedInts<I> {
             let spill = self.bits_per - bits_to_end;
             let next_mask = (I::one() << spill) - I::one();
 
+            debug_assert!(block_index + 1 < self.data.len());
             let next_word = &mut self.data[block_index + 1];
 
             *next_word = (*next_word & !next_mask) | (data >> bits_to_end);
         };
-
-        Ok(())
     }
 
     /// The index range from [0..count)
@@ -165,9 +194,9 @@ impl<I: FullInt> PackedInts<I> {
 
     /// Iterator over each element
     ///
-    /// This iterator iterates over clones of the data due to the nature of the structure
+    /// This iterates over cloned data due to the nature of the structure
     pub fn iter(&self) -> impl Iterator<Item = I> + '_ {
-        self.range().map(|idx| self.get(idx).unwrap())
+        self.range().map(|idx| self.get(idx))
     }
 
     /// Applies a function that maps indices to values to all indices.
@@ -179,7 +208,7 @@ impl<I: FullInt> PackedInts<I> {
         F: Fn(usize) -> I,
     {
         for idx in self.range() {
-            self.set(idx, map(idx)).unwrap()
+            self.set(idx, map(idx))
         }
     }
 
@@ -189,7 +218,7 @@ impl<I: FullInt> PackedInts<I> {
             self.data.fill(I::zero());
         } else {
             for idx in self.range() {
-                self.set(idx, data).unwrap()
+                self.set(idx, data)
             }
         }
     }
@@ -263,47 +292,60 @@ mod test {
 
         assert_eq!(packed.bits_per(), 6);
 
-        PackedInts::<usize>::new(1, 0)
-            .unwrap()
-            .decrement_bits_per()
-            .unwrap_err();
+        packed.set_bits_per(usize::BITS as usize - 1).unwrap();
 
-        PackedInts::<usize>::new(PackedInts::<usize>::MAX_BITS_PER - 1, 0)
-            .unwrap()
-            .increment_bits_per()
-            .unwrap_err();
+        packed.increment_bits_per().unwrap_err();
 
-        PackedInts::<usize>::new(0, 0).unwrap_err();
+        packed.set_bits_per(0).unwrap();
 
-        PackedInts::<usize>::new(PackedInts::<usize>::MAX_BITS_PER, 0).unwrap_err();
+        packed.decrement_bits_per().unwrap();
+
+        for val in packed.iter() {
+            assert_eq!(val, 0);
+        }
+
+        PackedInts::<usize>::new(usize::BITS as usize, 0).unwrap_err();
     }
 
     #[test]
     fn set_get_bits_between_boundaries() {
         let mut packed = PackedInts::<u8>::new(5, 2).unwrap();
 
-        packed.set(1, 0b10101).unwrap();
-        let result = packed.get(1).unwrap();
+        packed.set(1, 0b10101);
+        let result = packed.get(1);
 
         assert_eq!(result, 0b10101);
     }
 
     #[test]
-    fn zero_count() {
+    fn zero_data() {
         let packed = PackedInts::<usize>::new(4, 0).unwrap();
         assert_eq!(packed.iter().count(), 0);
 
-        packed.get(0).unwrap_err();
+        let mut packed = PackedInts::<usize>::new(0, 4).unwrap();
+        assert_eq!(packed.iter().count(), 0);
+
+        packed.set_all(1);
+        for val in packed.iter() {
+            assert_eq!(val, 0)
+        }
+
+        let packed = PackedInts::<usize>::new(0, 0).unwrap();
+        assert_eq!(packed.iter().count(), 0);
     }
 
     #[test]
-    fn get_set_result() {
-        let mut packed = packed();
-        packed.get(64).unwrap_err();
-        packed.set(64, 0).unwrap_err();
+    #[should_panic]
+    fn get_ob() {
+        let packed = packed();
+        packed.get(64);
+    }
 
-        packed.get(0).unwrap();
-        packed.set(0, 0).unwrap();
+    #[test]
+    #[should_panic]
+    fn set_ob() {
+        let mut packed = packed();
+        packed.set(64, 0);
     }
 
     #[test]
@@ -326,7 +368,7 @@ mod test {
             let data = I::from(index % max.to_usize().unwrap()).unwrap();
 
             raw[index] = data;
-            packed.set(index, data).unwrap();
+            packed.set(index, data);
         }
 
         for (unpacked, raw) in packed.iter().zip(raw.into_iter()) {
