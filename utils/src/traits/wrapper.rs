@@ -25,9 +25,9 @@ pub trait Wrapper {
 #[macro_export]
 macro_rules! transparent_ops {
     (
-        $wrapper:ident, 
-        $trait:ident, 
-        $method:ident, 
+        $wrapper:ident,
+        $trait:ident,
+        $method:ident,
         $constructor:expr,
         $output:ty
     ) => {
