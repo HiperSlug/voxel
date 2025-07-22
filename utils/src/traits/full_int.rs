@@ -20,6 +20,7 @@ pub trait FullInt:
 
 impl<T> FullInt for T where
     T: PrimInt
+        + Num
         + Copy
         + Send
         + Sync
