@@ -58,7 +58,7 @@ macro_rules! transparent_ops {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::Wrapper;
     use std::ops::{Add, Div, Mul, Rem, Sub};
 
