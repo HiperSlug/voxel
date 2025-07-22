@@ -1,6 +1,6 @@
 use crate::{FullInt, Wrapper};
 
-pub use errors::*;
+pub use errors::BoundsError;
 
 pub mod errors {
     use crate::FullInt;

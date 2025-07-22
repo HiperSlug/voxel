@@ -1,7 +1,7 @@
 use crate::FullInt;
 use std::ops::Range;
 
-pub use errors::*;
+pub use errors::{MaxedBitsPerError, TruncateError};
 
 pub mod errors {
     use thiserror::Error;
