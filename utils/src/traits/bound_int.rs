@@ -1,6 +1,33 @@
-use crate::{BoundsError, FullInt, Wrapper};
+use crate::{FullInt, Wrapper};
 
-/// Trait for Wrappers around PrimInt that restricts values
+pub use errors::*;
+
+pub mod errors {
+    use crate::FullInt;
+    use thiserror::Error;
+
+    #[derive(Debug, Error)]
+    #[error("value {value} is out of bounds [{lower}..{upper})")]
+    pub struct BoundsError<T: FullInt> {
+        pub value: T,
+        /// Exclusive
+        pub upper: T,
+        /// Inclusive
+        pub lower: T,
+    }
+
+    impl<T: FullInt> BoundsError<T> {
+        pub fn implicit(value: T) -> Self {
+            Self {
+                value,
+                upper: T::max_value(),
+                lower: T::min_value(),
+            }
+        }
+    }
+}
+
+/// Trait for Wrappers around Integers that restricts values
 ///
 /// # Associated Constants
 /// 'MAX_EXCLUSIVE: Self::Inner' - Exclusive upper bound
