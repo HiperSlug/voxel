@@ -13,7 +13,7 @@ pub struct BoundsError<T: FullInt> {
 }
 
 impl<T: FullInt> BoundsError<T> {
-    pub fn from_bounds(value: T) -> Self {
+    pub fn implicit(value: T) -> Self {
         Self {
             value,
             upper: T::max_value(),
@@ -21,7 +21,6 @@ impl<T: FullInt> BoundsError<T> {
         }
     }
 }
-
 
 #[derive(Debug, Error)]
 pub enum PackedIntsError {
@@ -36,9 +35,14 @@ pub enum PackedIntsError {
     TruncateSignificant(usize),
     /// index out of range [0..count)
     #[error("{0}")]
-    IndexOutOfBounds(IndexOutOfBounds),
+    IndexOutOfBounds(#[from] IndexOutOfBounds),
 }
 
 #[derive(Debug, Error)]
 #[error("index out of bounds - index: {0}, max: {1}")]
 pub struct IndexOutOfBounds(pub usize, pub usize);
+
+pub enum GetOrInsertResult {
+    Found(usize),
+    Inserted(usize),
+}

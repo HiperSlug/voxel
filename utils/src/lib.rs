@@ -8,6 +8,7 @@ pub use traits::full_int::FullInt;
 pub use traits::wrapper::Wrapper;
 
 pub use errors::BoundsError;
+pub use errors::IndexOutOfBounds;
 pub use errors::PackedIntsError;
 
 pub use structures::packed_ints::PackedInts;

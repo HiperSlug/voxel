@@ -1,13 +1,7 @@
 use crate::data::Voxel;
 
-use array::ArrayChunk;
-use pallet::PalletChunk;
-
-pub mod array;
-pub mod pallet;
-
 pub enum Chunk {
-    Array(ArrayChunk), // matrix chunk
+    Array(ArrayChunk),
     Pallet(PalletChunk),
 }
 
@@ -17,26 +11,26 @@ impl Default for Chunk {
     }
 }
 
-// impl Chunk {
-//     pub fn get(&self, pos: impl Into<LocalPos>) -> Voxel {
-//         let pos: LocalPos = pos.into();
-//         match self {
-//             Self::Array(a) => a.get(pos),
-//             Self::Pallet(p) => p.get(pos),
-//         }
-//     }
+impl Chunk {
+    pub fn get(&self, pos: VLocalPos) -> Voxel {
+        let index = pos.flat_index();
+        match self {
+            Self::Array(a) => a.get(index),
+            Self::Pallet(p) => p.get(index).unwrap(),
+        }
+    }
 
-//     pub fn set(&mut self, pos: impl Into<LocalPos>, value: Voxel) {
-//         let pos: LocalPos = pos.into();
-//         match self {
-//             Self::Array(a) => a.set(pos, value),
-//             Self::Pallet(p) => p.set(pos, value),
-//         }
-//     }
-// }
+    pub fn set(&mut self, pos: VLocalPos, voxel: Voxel) {
+        let index = pos.flat_index();
+        match self {
+            Self::Array(a) => a.set(index, voxel),
+            Self::Pallet(p) => p.set(index, voxel).unwrap(),
+        }
+    }
+}
 
+pub use data_structures::{array_chunk::ArrayChunk, pallet_chunk::PalletChunk};
 pub use space::*;
-pub use data_structures::*;
 
 /// Data related to voxel and chunk space.
 pub mod space;

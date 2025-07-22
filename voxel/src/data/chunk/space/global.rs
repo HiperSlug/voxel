@@ -1,8 +1,7 @@
 use super::{ChunkPos, VLocalPos};
 
-
 /// Voxels position in global space
-/// 
+///
 /// # Components
 /// - 'VLocalPos' the position in space relative to a chunk
 /// - 'ChunkPos' the chunks position in space relative to the origin

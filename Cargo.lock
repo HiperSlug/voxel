@@ -4236,6 +4236,7 @@ dependencies = [
  "anyhow",
  "bevy",
  "num-traits",
+ "thiserror 2.0.12",
  "utils",
 ]
 

@@ -1,7 +1,6 @@
 pub use coord::LocalCoord;
 pub use position::VLocalPos;
 
-
 /// Side length of standard chunks
 pub const CHUNK_LENGTH: u8 = 16;
 
@@ -12,13 +11,12 @@ pub const VOXELS_IN_CHUNK: u16 = (CHUNK_LENGTH as u16).pow(3);
 
 /// Bounded [0..CHUNK_LENGTH) coordinate
 pub mod coord {
-    use utils::{Wrapper, BoundInt, CyclicBoundInt};
-    use utils::default_transparent_ops;
+    use utils::{BoundInt, CyclicBoundInt, Wrapper};
 
     use super::CHUNK_LENGTH;
 
     /// Wrapper structure that binds a u8 between [0..CHUNK_LENGTH)
-    /// 
+    ///
     /// # Bounds
     /// Use 'bounded_wrap(inner)' or 'normalized_wrap(inner)' to create bounded variants.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -45,9 +43,7 @@ pub mod coord {
         }
     }
 
-    impl CyclicBoundInt for LocalCoord { }
-
-    default_transparent_ops!(LocalCoord, bounded_wrap);
+    impl CyclicBoundInt for LocalCoord {}
 }
 
 /// Position in local chunk space
