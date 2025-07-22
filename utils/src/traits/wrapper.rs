@@ -18,58 +18,42 @@ pub trait Wrapper {
 ///
 /// # Parameters
 /// - `$wrapper` - The target type
-/// - `$trait` - The ops trait to implement (e.g., `Add`)
+/// - `$trait` - The trait to impliment (e.g., `std::ops::Add`)
 /// - `$method` - The method name from the trait (e.g., `add`)
+/// - `$constructor` - The method to create `Self` from the inner type
+/// - `$output` - The `Output` type of the `$constructor`
 #[macro_export]
 macro_rules! transparent_ops {
-    ($wrapper:ident, $trait:ident, $method:ident, $constructor:ident) => {
-        impl std::ops::$trait<<$wrapper as $crate::Wrapper>::Inner> for $wrapper
+    (
+        $wrapper:ident, 
+        $trait:ident, 
+        $method:ident, 
+        $constructor:expr,
+        $output:ty
+    ) => {
+        impl $trait<<$wrapper as $crate::Wrapper>::Inner> for $wrapper
         where
             $wrapper: $crate::Wrapper,
-            <$wrapper as $crate::Wrapper>::Inner:
-                std::ops::$trait<Output = <$wrapper as $crate::Wrapper>::Inner>,
+            <$wrapper as $crate::Wrapper>::Inner: $trait,
         {
-            type Output = Self;
+            type Output = $output;
 
             fn $method(self, rhs: <$wrapper as $crate::Wrapper>::Inner) -> Self::Output {
-                Self::$constructor(self.into_inner().$method(rhs))
+                $constructor(self.into_inner().$method(rhs))
             }
         }
 
-        impl std::ops::$trait<$wrapper> for $wrapper
+        impl $trait for $wrapper
         where
             $wrapper: $crate::Wrapper,
-            <$wrapper as $crate::Wrapper>::Inner:
-                std::ops::$trait<Output = <$wrapper as $crate::Wrapper>::Inner>,
+            <$wrapper as $crate::Wrapper>::Inner: $trait,
         {
-            type Output = Self;
+            type Output = $output;
 
             fn $method(self, rhs: Self) -> Self::Output {
-                Self::$constructor(self.into_inner().$method(rhs.into_inner()))
+                $constructor(self.into_inner().$method(rhs.into_inner()))
             }
         }
-    };
-}
-
-/// Impliments default ops for a wrapper
-///
-/// # Traits
-/// - Add
-/// - Sub
-/// - Mul
-/// - Div
-/// - Rem
-///
-/// # Parameters
-/// - `$wrapper` - The target type
-#[macro_export]
-macro_rules! default_transparent_ops {
-    ($wrapper:ident, $constructor:ident) => {
-        $crate::transparent_ops!($wrapper, Add, add, $constructor);
-        $crate::transparent_ops!($wrapper, Sub, sub, $constructor);
-        $crate::transparent_ops!($wrapper, Mul, mul, $constructor);
-        $crate::transparent_ops!($wrapper, Div, div, $constructor);
-        $crate::transparent_ops!($wrapper, Rem, rem, $constructor);
     };
 }
 
@@ -99,10 +83,14 @@ pub mod tests {
         }
     }
 
-    default_transparent_ops!(MyWrapper, new);
+    transparent_ops!(MyWrapper, Add, add, MyWrapper::new, MyWrapper);
+    transparent_ops!(MyWrapper, Sub, sub, MyWrapper::new, MyWrapper);
+    transparent_ops!(MyWrapper, Mul, mul, MyWrapper::new, MyWrapper);
+    transparent_ops!(MyWrapper, Div, div, MyWrapper::new, MyWrapper);
+    transparent_ops!(MyWrapper, Rem, rem, MyWrapper::new, MyWrapper);
 
     #[test]
-    fn transparent_operations() {
+    fn ops_with_inner() {
         let wrapped = MyWrapper(64);
 
         let add = *wrapped.add(16).inner();
