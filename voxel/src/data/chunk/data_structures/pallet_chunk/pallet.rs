@@ -88,6 +88,11 @@ impl<T: Ord + Copy> Pallet<T> {
         Self { inner }
     }
 
+    /// Alias for `self.inner.len()`
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
     /// Alias for `inner.binary_search(variant)`
     pub fn binary_search(&self, variant: &Variant<T>) -> Result<usize, usize> {
         self.inner.binary_search(&variant)

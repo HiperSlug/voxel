@@ -1,137 +1,117 @@
-use crate::data::chunk::VOXELS_IN_CHUNK;
 use crate::data::Voxel;
+use crate::data::chunk::VOXELS_IN_CHUNK;
 use utils::PackedInts;
 
-pub use pallet::{Pallet, Variant, GetOrInsertResult};
+pub use pallet::{GetOrInsertResult, Pallet, Variant};
 
 pub mod pallet;
 
-/// A chunk stored as a `Pallet` and `PackedInts`.
-/// The PackedInts are the smallest possible indices in the pallet.
+pub type VoxelPallet = Pallet<Voxel>;
+pub type PackedIndices = PackedInts<usize>;
+
+enum Remap {
+    Up,
+    Down,
+}
+
+/// A chunk stored as a `VoxelPallet` and flat array of `PackedIndices` pointing to `VoxelPallet`.
 ///
-/// This is more efficient data storage for sparse chunks
-/// For complex chunks this is slower and less memory efficient than a raw ArrayChunk
+/// # Efficiency
+/// This is more efficient for sparse chunks but less efficient for complex chunks
 pub struct PalletChunk {
-    pallet: Pallet<Voxel>,
-    packed: PackedInts<usize>,
+    pallet: VoxelPallet,
+    packed: PackedIndices,
 }
 
 impl PalletChunk {
-    /// Creates an empty `PalletChunk`
+    /// Creates an empty `PalletChunk` with a assigned `VoxelPallet`
     ///
     /// Pallets are not meant to be large, and they must always be non-zero.
     ///
-    /// # Returns
-    /// - `Err(PackedIntsError::ZeroBitsPer)` when `bits_per == 0`
-    /// - `Err(PackedIntsError::MaxedBitsPer)` when `bits_per >= Self::MAX_BITS_PER`
-    pub fn new(pallet: Pallet<Voxel>) -> Result<Self, PackedIntsError> {
-        Ok(Self {
-            packed: PackedInts::new(pallet.req_bits(), VOXELS_IN_CHUNK as usize)?,
+    /// # Panics
+    /// If `pallet.len() >= usize::MAX`
+    pub fn new(pallet: Pallet<Voxel>) -> Self {
+        Self {
+            packed: PackedInts::new(pallet.req_bits(), VOXELS_IN_CHUNK as usize).unwrap(),
             pallet,
-        })
+        }
     }
 
     /// Returns the Voxel stored at a certain index
     ///
-    /// # Errors
-    /// - `Err(PackedIntsError::IndexOutOfBounds)` when `index >= self.count`
-    pub fn get(&self, idx: usize) -> Result<Voxel, PackedIntsError> {
-        self.get_variant(idx).map(|variant| variant.inner())
+    /// # Panics
+    /// If `index >= VOXELS_IN_CHUNK`
+    pub fn get(&self, idx: usize) -> Voxel {
+        self.get_variant(idx).inner()
     }
 
     /// Returns the Variant<Voxel> stored at a certain index
     ///
     /// # Errors
     /// - `Err(PackedIntsError::IndexOutOfBounds)` when `index >= self.count`
-    pub fn get_variant(&self, idx: usize) -> Result<&Variant<Voxel>, PackedIntsError> {
-        let pallet_idx = self.packed.get(idx)?;
-        Ok(self
-            .pallet
+    pub fn get_variant(&self, idx: usize) -> &Variant<Voxel> {
+        let pallet_idx = self.packed.get(idx);
+        self.pallet
             .get(pallet_idx)
-            .expect("Every PackedInt should be guaranteed to point at a Pallet Variant"))
+            .expect("Every PackedIndex is guaranteed to point at a Variant<Voxel>")
     }
 
     /// Sets the Voxel stored at a certain index
     ///
-    /// # Errors
-    /// - `Err(PackedIntsError::IndexOutOfBounds)` when `index >= self.count`
-    pub fn set(&mut self, target_idx: usize, voxel: Voxel) -> Result<(), PackedIntsError> {
-        let pallet_idx = self.packed.get(target_idx)?;
-        let removed = self
-            .pallet
-            .get(pallet_idx)
-            .expect("Every PackedInt should be guaranteed to point at a Pallet Variant");
+    /// # Panics
+    /// If `index >= VOXELS_IN_CHUNK`
+    pub fn set(&mut self, idx: usize, voxel: Voxel) {
+        let pallet_idx = self.packed.get(idx);
 
-        let was_shifted = self
-            .pallet
-            .decrement_index(
-                self.pallet
-                    .binary_search(removed)
-                    .expect("Every PackedInt should be guaranteed to point at a Pallet Variant"),
-            )
-            .expect("Index cannot be out of bounds because we got it from a binary_search");
+        let was_shifted = self.pallet.decrement_index(pallet_idx);
 
         if was_shifted {
             self.remap(pallet_idx, Remap::Down);
         }
 
         match self.pallet.get_or_insert(voxel) {
-            GetOrInsertResult::Found(voxel_idx) => {
-                self.packed
-                    .set(target_idx, voxel_idx)
-                    .expect("Already verified this index");
+            GetOrInsertResult::Gotten(pallet_idx) => {
+                self.packed.set(idx, pallet_idx);
 
                 self.pallet
-                    .increment_index(voxel_idx)
-                    .expect("Already verified this index");
+                    .increment_index(pallet_idx)
+                    .expect("Not enough voxels in chunk to overflow count");
 
                 if was_shifted {
                     if self.pallet.req_bits() < self.packed.bits_per() {
-                        // These errors can be handled but most likely point to implimentation faults
-                        self.packed.decrement_bits_per().unwrap();
+                        self.packed.decrement_bits_per().expect("Because we know that req_bits < bits_per, we cannot truncate signficant data unless PackedIndices has bad data");
                     }
                 }
             }
 
-            GetOrInsertResult::Inserted(voxel_idx) => {
-                self.remap(voxel_idx + 1, Remap::Up);
+            GetOrInsertResult::Inserted(pallet_idx) => {
+                self.remap(pallet_idx + 1, Remap::Up);
 
                 if self.pallet.req_bits() > self.packed.bits_per() {
-                    // These errors can be handled but most likely point to implimentation faults
-                    self.packed.increment_bits_per().unwrap();
+                    self.packed.increment_bits_per().expect("In order to overflow bits_per in a PackedInts<usize> Pallet.len() would need to have 2^(usize::MAX) variants.");
                 }
 
-                self.packed
-                    .set(target_idx, voxel_idx)
-                    .expect("Already verified this index");
+                self.packed.set(idx, pallet_idx);
             }
         }
-
-        Ok(())
     }
 
-    /// Shifts all stored pallet_indexs greater than or equal to min_pallet_idx either up or down one pallet index
+    /// Shifts every `PackedIndex` greater than or equal to `above` either up or down by `1`
     fn remap(&mut self, min_pallet_idx: usize, remap: Remap) {
+        if min_pallet_idx >= self.pallet.len() {
+            return;
+        }
+
         for idx in self.packed.range() {
-            let pallet_idx = self
-                .packed
-                .get(idx)
-                .expect("Index in range always in bounds");
+            let pallet_idx = self.packed.get(idx);
 
             if pallet_idx >= min_pallet_idx {
                 let new_pallet_index = match remap {
                     Remap::Up => pallet_idx + 1,
                     Remap::Down => pallet_idx - 1,
                 };
-                self.packed
-                    .set(idx, new_pallet_index)
-                    .expect("Index in range always in bounds");
+                self.packed.set(idx, new_pallet_index);
             }
         }
     }
-}
-
-enum Remap {
-    Up,
-    Down,
 }
