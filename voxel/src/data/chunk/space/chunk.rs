@@ -7,7 +7,7 @@ pub struct ChunkPos {
 }
 
 impl ChunkPos {
-    /// Creates a new 'ChunkPos'
+    /// Creates a new `ChunkPos`
     pub fn new(x: i64, y: i64, z: i64) -> Self {
         Self { x, y, z }
     }

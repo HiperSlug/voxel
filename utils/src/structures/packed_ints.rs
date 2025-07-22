@@ -19,7 +19,7 @@ mod errors {
 
 #[derive(Clone, Debug)]
 pub struct PackedInts<I> {
-    /// The heap allocated array of 'I'
+    /// The heap allocated array of `I`
     data: Box<[I]>,
 
     /// The number of significant bits per number
@@ -29,8 +29,8 @@ pub struct PackedInts<I> {
     count: usize,
 
     /// Both:
-    /// - The max value an 'I' of size 'bits_per' can be
-    /// - The unshifted mask of length 'bits_per'
+    /// - The max value an `I` of size `bits_per` can be
+    /// - The unshifted mask of length `bits_per`
     max_and_mask: I,
 }
 
@@ -38,7 +38,7 @@ impl<I: FullInt> PackedInts<I> {
     /// Creates an empty collection
     ///
     /// # Errors
-    /// - 'Err(MaxedBitsPerError)' when 'bits_per >= I::BIT_LEN'
+    /// - `Err(MaxedBitsPerError)` when `bits_per >= I::BIT_LEN`
     pub fn new(bits_per: usize, count: usize) -> Result<Self, MaxedBitsPerError> {
         if bits_per >= I::BIT_LEN {
             return Err(MaxedBitsPerError(bits_per, I::BIT_LEN));
@@ -68,7 +68,7 @@ impl<I: FullInt> PackedInts<I> {
     /// Truncates data
     ///
     /// # Errors
-    /// - 'Err(MaxedBitsPerError)' when 'bits_per >= I::BIT_LEN'
+    /// - `Err(MaxedBitsPerError)` when `bits_per >= I::BIT_LEN`
     pub fn set_bits_per(&mut self, bits_per: usize) -> Result<(), MaxedBitsPerError> {
         let mut new_self = Self::new(bits_per, self.count)?;
 
@@ -84,19 +84,19 @@ impl<I: FullInt> PackedInts<I> {
     /// Alias for self.set_bits_per(self.bits_per + 1)
     ///
     /// # Errors
-    /// - 'Err(MaxedBitsPerError)' when 'bits_per >= I::BIT_LEN'
+    /// - `Err(MaxedBitsPerError)` when `bits_per >= I::BIT_LEN`
     pub fn increment_bits_per(&mut self) -> Result<(), MaxedBitsPerError> {
         self.set_bits_per(self.bits_per + 1)
     }
 
     /// Lowers the number of bits this storage uses by one
     ///
-    /// To force truncation use 'set_bits_per()'
+    /// To force truncation use `set_bits_per()`
     ///
-    /// When 'bits_per == 0' nothing happens
+    /// When `bits_per == 0` nothing happens
     ///
     /// # Errors
-    /// - 'Err(TruncateError)' when this operation would truncate a value
+    /// - `Err(TruncateError)` when this operation would truncate a value
     pub fn decrement_bits_per(&mut self) -> Result<(), TruncateError> {
         if self.bits_per == 0 {
             return Ok(());
@@ -116,12 +116,12 @@ impl<I: FullInt> PackedInts<I> {
         Ok(())
     }
 
-    /// Returns the 'data' stored at 'index'
+    /// Returns the `data` stored at `index`
     ///
-    /// When 'self.bits_per == 0' returns 'I::zero()'
+    /// When `self.bits_per == 0` returns `I::zero()`
     ///
     /// # Panics
-    /// - When 'index' is out of bounds
+    /// - When `index` is out of bounds
     pub fn get(&self, index: usize) -> I {
         assert!(index < self.count, "index out of bounds");
 
@@ -149,12 +149,12 @@ impl<I: FullInt> PackedInts<I> {
         value & self.max_and_mask
     }
 
-    /// Sets the value at 'index' to 'data'
+    /// Sets the value at `index` to `data`
     ///
-    /// When 'self.bits_per == 0' does nothing
+    /// When `self.bits_per == 0` does nothing
     ///
     /// # Panics
-    /// - When 'index' is out of bounds
+    /// - When `index` is out of bounds
     pub fn set(&mut self, index: usize, data: I) {
         assert!(index < self.count, "index out of bounds");
 
@@ -202,7 +202,7 @@ impl<I: FullInt> PackedInts<I> {
     /// Applies a function that maps indices to values to all indices.
     ///
     /// # Function
-    /// 'Fn(index: usize) -> 'data'
+    /// `Fn(index: usize) -> `data`
     pub fn index_map<F>(&mut self, map: F)
     where
         F: Fn(usize) -> I,

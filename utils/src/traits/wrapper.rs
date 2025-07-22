@@ -1,12 +1,12 @@
 /// Trait for types with interfaces into inner values
 ///
 /// # Associated Type
-/// - 'Inner': The wrapped type
+/// - `Inner`: The wrapped type
 ///
 /// # Required Methods
-/// - 'wrap(Self::Inner) -> Self' - Constructs 'Self' from the inner value
-/// - 'inner(&self) -> &Self::Inner' - Returns a shared reference to the inner value
-/// - 'into_inner(self) -> Self::Inner' - Consumes 'self' and returns the inner value
+/// - `wrap(Self::Inner) -> Self` - Constructs `Self` from the inner value
+/// - `inner(&self) -> &Self::Inner` - Returns a shared reference to the inner value
+/// - `into_inner(self) -> Self::Inner` - Consumes `self` and returns the inner value
 pub trait Wrapper {
     type Inner;
 

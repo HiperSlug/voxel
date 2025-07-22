@@ -1,11 +1,21 @@
-use thiserror::Error;
-use utils::{BoundsError, IndexOutOfBounds};
-pub use variant::Variant;
+pub use variant::*;
 
 pub mod variant {
-    use utils::BoundsError;
+    pub use errors::*;
 
-    /// A data piece in a 'Pallet' that stores both its inner data and the number of times it is used.
+    mod errors {
+        use thiserror::Error;
+
+        #[derive(Debug, Error)]
+        #[error("Pallet count has overflowed")]
+        pub struct CountOverflow;
+
+        #[derive(Debug, Error)]
+        #[error("Pallet count has underflowed")]
+        pub struct CountUnderflow;
+    }
+
+    /// A data piece in a `Pallet` that stores both its `inner` data and its `count`.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Variant<T> {
         inner: T,
@@ -13,40 +23,34 @@ pub mod variant {
     }
 
     impl<T: Copy> Variant<T> {
-        /// Creates a new Variant
+        /// Creates a new `Variant`
         pub fn new(inner: T, count: u16) -> Self {
             Self { inner, count }
         }
 
-        /// The inner value
+        /// The `inner` data
         pub fn inner(&self) -> T {
             self.inner
         }
 
-        /// Increases count by one
+        /// Increases `count` by `1`
         ///
         /// # Errors
-        /// - Err(BoundsError<u16>) when count would increase beyond u16::MAX
-        pub fn increment(&mut self) -> Result<(), BoundsError<u16>> {
-            if self.count == u16::MAX {
-                Err(BoundsError::implicit(self.count))
-            } else {
-                self.count += 1;
-                Ok(())
-            }
+        /// - `Err(CountOverflow)` if count increases beyond `u16::MAX`
+        pub fn increment(&mut self) -> Result<(), CountOverflow> {
+            self.count = self.count.checked_add(1).ok_or(CountOverflow)?;
+
+            Ok(())
         }
 
-        /// Decreases count by one
+        /// Decreases `count` by `1`
         ///
         /// # Errors
-        /// - Err(BoundsError<u16>) when count would decrease below 0
-        pub fn decrement(&mut self) -> Result<(), BoundsError<u16>> {
-            if self.count == 0 {
-                Err(BoundsError::implicit(self.count))
-            } else {
-                self.count -= 1;
-                Ok(())
-            }
+        /// - `Err(CountUnderflow)` when count decreases beyond `0`
+        pub fn decrement(&mut self) -> Result<(), CountUnderflow> {
+            self.count = self.count.checked_sub(1).ok_or(CountUnderflow)?;
+
+            Ok(())
         }
     }
 
@@ -63,41 +67,47 @@ pub mod variant {
     }
 }
 
-/// Sorted Vec<Variant>
+/// Either [`Gotten(index)`] or [`Inserted(index)`]
+#[derive(Debug, Clone)]
+pub enum GetOrInsertResult {
+    Gotten(usize),
+    Inserted(usize),
+}
+
+/// Sorted `Vec<Variant>` with helper functions
 pub struct Pallet<T> {
     inner: Vec<Variant<T>>,
 }
 
 impl<T: Ord + Copy> Pallet<T> {
-    /// Creates a new pallet from a 'Vec<Variant<T>>'
+    /// Creates a new pallet from a `Vec<Variant<T>>`
     ///
-    /// The 'Vec<Variant<T>>' doesnt need to be sorted
+    /// The `Vec<Variant<T>>` doesn't need to be sorted
     pub fn new(mut inner: Vec<Variant<T>>) -> Self {
         inner.sort_unstable();
         Self { inner }
     }
 
-    /// Alias for 'inner.binary_search(variant)'
+    /// Alias for `inner.binary_search(variant)`
     pub fn binary_search(&self, variant: &Variant<T>) -> Result<usize, usize> {
         self.inner.binary_search(&variant)
     }
 
-    /// Alias for 'inner.get(idx)'
+    /// Alias for `inner.get(idx)`
     pub fn get(&self, idx: usize) -> Option<&Variant<T>> {
         self.inner.get(idx)
     }
 
-    /// Gets a value if it exists, inserts it if it doesnt.
+    /// Gets a value if it exists, inserts it if it doesnt
     ///
     /// # Returns
-    /// 'Ok(index: usize)' if the value existed
-    ///
-    /// 'Err(index: usize)' if the value was inserted with a default value of one
+    /// - `GetOrInsertResult::Gotten(index)` when gotten
+    /// -`GetOrInsertResult::Inserted(index)` when inserted with a default `count` of `1`
     pub fn get_or_insert(&mut self, data: T) -> GetOrInsertResult {
         let variant = Variant::new(data, 1);
 
         match self.binary_search(&variant) {
-            Ok(i) => GetOrInsertResult::Found(i),
+            Ok(i) => GetOrInsertResult::Gotten(i),
             Err(i) => {
                 self.inner.insert(i, variant);
                 GetOrInsertResult::Inserted(i)
@@ -105,65 +115,49 @@ impl<T: Ord + Copy> Pallet<T> {
         }
     }
 
-    /// Decreases the 'count' of 'Variant' at 'index' by 1.
-    /// If 'Variant' reaches '0', removes the variant.
+    /// Decreases the `count` of `Variant` at `index` by `1`
+    ///
+    /// If `count` reaches `0`, removes the variant
+    ///
+    /// # Panics
+    /// When index is out of bounds
     ///
     /// # Returns
-    /// - 'Ok(bool)' if variant.count was decremented
-    ///     - 'true' if a variant was removed (indices where shifted)
-    ///     - 'false' if the count was decremented without removal.
-    /// - 'Err(IndexOutOfBounds)' if index is out of bounds
-    pub fn decrement_index(&mut self, index: usize) -> Result<bool, ChangeCountError> {
-        if index >= self.inner.len() {
-            Err(IndexOutOfBounds(index, self.inner.len()))?
-        }
+    /// - `true` if a variant was removed (indices where shifted)
+    /// - `false` if the count was decremented without removal.
+    pub fn decrement_index(&mut self, index: usize) -> bool {
+        assert!(index < self.inner.len(), "index out of bounds");
+
         let variant = &mut self.inner[index];
 
         let should_remove = variant.count <= 1;
         if should_remove {
             self.inner.remove(index);
         } else {
-            variant.decrement()?;
+            variant
+                .decrement()
+                .expect("count must be at least 1 before decrementing");
         }
 
-        Ok(should_remove)
+        should_remove
     }
 
-    /// Increases the 'count' of 'Variant' at 'index' by 1.
+    /// Increases the `count` of `Variant` at `index` by `1`
     ///
-    /// # Returns
-    /// - 'Ok(_)' if variant.count was incremented
-    /// - 'Err(IndexOutOfBounds)' if index is out of bounds
-    pub fn increment_index(&mut self, index: usize) -> Result<(), ChangeCountError> {
-        if index >= self.inner.len() {
-            Err(IndexOutOfBounds(index, self.inner.len()))?
-        }
-        self.inner[index].increment()?;
-
-        Ok(())
+    /// # Panics
+    /// If index is out of bounds
+    pub fn increment_index(&mut self, index: usize) -> Result<(), CountOverflow> {
+        assert!(index < self.inner.len(), "index out of bounds");
+        self.inner[index].increment()
     }
 
     /// Returns the minimum number of bits required to index this pallet
     pub fn req_bits(&self) -> usize {
         let len = self.inner.len();
-        if len <= 1 {
-            1
-        } else {
-            (len - 1).ilog2() as usize + 1
+        match len {
+            0 => 0,
+            1 => 1,
+            _ => (len - 1).ilog2() as usize + 1,
         }
     }
-}
-
-#[derive(Debug, Error)]
-pub enum ChangeCountError {
-    #[error("{0}")]
-    IndexOutOfBounds(#[from] IndexOutOfBounds),
-    #[error("{0}")]
-    BoundsError(#[from] BoundsError<u16>),
-}
-
-#[derive(Debug, Clone)]
-pub enum GetOrInsertResult {
-    Found(usize),
-    Inserted(usize),
 }

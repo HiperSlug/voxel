@@ -19,7 +19,7 @@ pub mod coord {
     /// Wrapper structure that binds a u8 between [0..CHUNK_LENGTH)
     ///
     /// # Bounds
-    /// Use 'bounded_wrap(inner)' or 'normalized_wrap(inner)' to create bounded variants.
+    /// Use `bounded_wrap(inner)` or `normalized_wrap(inner)` to create bounded variants.
     ///
     /// # Operations
     /// All operations done on a localcoord wrap will overflow from MAX (15) to MIN (0) and vice versa

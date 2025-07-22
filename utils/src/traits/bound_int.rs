@@ -30,8 +30,8 @@ mod errors {
 /// Trait for Wrappers around Integers that restricts values
 ///
 /// # Associated Constants
-/// 'MAX_EXCLUSIVE: Self::Inner' - Exclusive upper bound
-/// 'MIN: Self::Inner' - Inclusive lower bound
+/// `MAX_EXCLUSIVE: Self::Inner` - Exclusive upper bound
+/// `MIN: Self::Inner` - Inclusive lower bound
 pub trait BoundInt: Sized + Wrapper
 where
     Self::Inner: FullInt,
@@ -53,28 +53,28 @@ where
 
     /// The number of possible values
     ///
-    /// Alias for 'Self::MAX_EXCLUSIVE - Self::MIN_INCLUSIVE'
+    /// Alias for `Self::MAX_EXCLUSIVE - Self::MIN_INCLUSIVE`
     fn span() -> Self::Inner {
         Self::max() - Self::min()
     }
 
-    /// Creates a bound wrapper around a base type 'Self::Inner'
+    /// Creates a bound wrapper around a base type `Self::Inner`
     ///
     /// # Returns
-    /// - 'Ok(Self)'
-    /// - 'Err(OutOfBoundsError)' - if value is out of bounds
+    /// - `Ok(Self)`
+    /// - `Err(OutOfBoundsError)` - if value is out of bounds
     ///
     /// # Example
-    /// 'fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>> {
+    /// `fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>> {
     ///     Self::validate_value(inner).map(|_| Self(inner))
-    /// }'
+    /// }`
     fn bounded_wrap(inner: Self::Inner) -> Result<Self, BoundsError<Self::Inner>>;
 
     /// Returns if the value is out of bounds
     ///
     /// # Returns
-    /// 'Ok(_)' if value is in bounds
-    /// 'Err(OutOfBoundsError)' if value is out of bounds
+    /// `Ok(_)` if value is in bounds
+    /// `Err(OutOfBoundsError)` if value is out of bounds
     fn validate_value(inner: Self::Inner) -> Result<(), BoundsError<Self::Inner>> {
         if inner >= Self::max() || inner < Self::min() {
             Err(BoundsError {
@@ -95,23 +95,23 @@ where
 
 /// A trait for BoundInt that includes a function to get wrapped values
 pub trait CyclicBoundInt: BoundInt<Inner: FullInt> {
-    /// Creates a bound wrapper around a base type 'Self::Inner'
+    /// Creates a bound wrapper around a base type `Self::Inner`
     ///
     /// # Bounds
-    /// Values exceeding 'MAX_EXCLUSIVE' wrap to 'MIN_INCLUSIVE'
+    /// Values exceeding `MAX_EXCLUSIVE` wrap to `MIN_INCLUSIVE`
     ///
-    /// Values below 'MIN_INCLUSIVE' wrap to 'MAX_EXCLUSIVE - 1'
+    /// Values below `MIN_INCLUSIVE` wrap to `MAX_EXCLUSIVE - 1`
     fn normalized_wrap(inner: Self::Inner) -> Self {
         let cycled = Self::normalize(inner);
         Self::bounded_wrap(cycled).unwrap()
     }
 
-    /// Returns 'Self::Inner' known to be in bounds
+    /// Returns `Self::Inner` known to be in bounds
     ///
     /// # Bounds
-    /// Values exceeding 'MAX_EXCLUSIVE' wrap to 'MIN_INCLUSIVE'
+    /// Values exceeding `MAX_EXCLUSIVE` wrap to `MIN_INCLUSIVE`
     ///
-    /// Values below 'MIN_INCLUSIVE' wrap to 'MAX_EXCLUSIVE - 1'
+    /// Values below `MIN_INCLUSIVE` wrap to `MAX_EXCLUSIVE - 1`
     fn normalize(inner: Self::Inner) -> Self::Inner {
         let shifted = inner - Self::min();
         let rem = shifted % Self::span();

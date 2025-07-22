@@ -1,13 +1,12 @@
 use crate::data::chunk::VOXELS_IN_CHUNK;
-use crate::data::{Voxel, chunk::data_structures::pallet_chunk::pallet::GetOrInsertResult};
+use crate::data::Voxel;
+use utils::PackedInts;
 
-use utils::{PackedInts, PackedIntsError};
-
-pub use pallet::{Pallet, Variant};
+pub use pallet::{Pallet, Variant, GetOrInsertResult};
 
 pub mod pallet;
 
-/// A chunk stored as a 'Pallet' and 'PackedInts'.
+/// A chunk stored as a `Pallet` and `PackedInts`.
 /// The PackedInts are the smallest possible indices in the pallet.
 ///
 /// This is more efficient data storage for sparse chunks
@@ -18,13 +17,13 @@ pub struct PalletChunk {
 }
 
 impl PalletChunk {
-    /// Creates an empty 'PalletChunk'
+    /// Creates an empty `PalletChunk`
     ///
     /// Pallets are not meant to be large, and they must always be non-zero.
     ///
     /// # Returns
-    /// - 'Err(PackedIntsError::ZeroBitsPer)' when 'bits_per == 0'
-    /// - 'Err(PackedIntsError::MaxedBitsPer)' when 'bits_per >= Self::MAX_BITS_PER'
+    /// - `Err(PackedIntsError::ZeroBitsPer)` when `bits_per == 0`
+    /// - `Err(PackedIntsError::MaxedBitsPer)` when `bits_per >= Self::MAX_BITS_PER`
     pub fn new(pallet: Pallet<Voxel>) -> Result<Self, PackedIntsError> {
         Ok(Self {
             packed: PackedInts::new(pallet.req_bits(), VOXELS_IN_CHUNK as usize)?,
@@ -35,7 +34,7 @@ impl PalletChunk {
     /// Returns the Voxel stored at a certain index
     ///
     /// # Errors
-    /// - 'Err(PackedIntsError::IndexOutOfBounds)' when 'index >= self.count'
+    /// - `Err(PackedIntsError::IndexOutOfBounds)` when `index >= self.count`
     pub fn get(&self, idx: usize) -> Result<Voxel, PackedIntsError> {
         self.get_variant(idx).map(|variant| variant.inner())
     }
@@ -43,7 +42,7 @@ impl PalletChunk {
     /// Returns the Variant<Voxel> stored at a certain index
     ///
     /// # Errors
-    /// - 'Err(PackedIntsError::IndexOutOfBounds)' when 'index >= self.count'
+    /// - `Err(PackedIntsError::IndexOutOfBounds)` when `index >= self.count`
     pub fn get_variant(&self, idx: usize) -> Result<&Variant<Voxel>, PackedIntsError> {
         let pallet_idx = self.packed.get(idx)?;
         Ok(self
@@ -55,7 +54,7 @@ impl PalletChunk {
     /// Sets the Voxel stored at a certain index
     ///
     /// # Errors
-    /// - 'Err(PackedIntsError::IndexOutOfBounds)' when 'index >= self.count'
+    /// - `Err(PackedIntsError::IndexOutOfBounds)` when `index >= self.count`
     pub fn set(&mut self, target_idx: usize, voxel: Voxel) -> Result<(), PackedIntsError> {
         let pallet_idx = self.packed.get(target_idx)?;
         let removed = self
