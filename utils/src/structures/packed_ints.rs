@@ -3,7 +3,7 @@ use std::ops::Range;
 
 pub use errors::{MaxedBitsPerError, TruncateError};
 
-pub mod errors {
+mod errors {
     use thiserror::Error;
 
     /// Returned when bits_per exceeded the maximum

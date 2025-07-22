@@ -2,7 +2,7 @@ use crate::{FullInt, Wrapper};
 
 pub use errors::BoundsError;
 
-pub mod errors {
+mod errors {
     use crate::FullInt;
     use thiserror::Error;
 
