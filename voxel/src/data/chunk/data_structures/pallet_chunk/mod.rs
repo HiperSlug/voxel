@@ -1,5 +1,5 @@
-use crate::data::voxel::Voxel;
 use crate::data::chunk::VOXELS_IN_CHUNK;
+use crate::data::voxel::Voxel;
 use utils::PackedInts;
 
 pub use pallet::{GetOrInsertResult, Pallet, Variant};
@@ -24,6 +24,8 @@ pub struct PalletChunk {
 }
 
 impl PalletChunk {
+    const BIT_LIMIT: usize = 6;
+
     /// Creates an empty `PalletChunk` with a assigned `VoxelPallet`
     ///
     /// Pallets are not meant to be large, and they must always be non-zero.
@@ -58,9 +60,12 @@ impl PalletChunk {
 
     /// Sets the Voxel stored at a certain index
     ///
+    /// # Returns
+    /// - `true` if this action pushed the chunk over the bit_limit
+    /// 
     /// # Panics
     /// If `index >= VOXELS_IN_CHUNK`
-    pub fn set(&mut self, idx: usize, voxel: Voxel) {
+    pub fn set(&mut self, idx: usize, voxel: Voxel) -> bool {
         let pallet_idx = self.packed.get(idx);
 
         let was_shifted = self.pallet.decrement_index(pallet_idx);
@@ -82,16 +87,20 @@ impl PalletChunk {
                         self.packed.decrement_bits_per().expect("Because we know that req_bits < bits_per, we cannot truncate signficant data unless PackedIndices has bad data");
                     }
                 }
+                false
             }
 
             GetOrInsertResult::Inserted(pallet_idx) => {
                 self.remap(pallet_idx + 1, Remap::Up);
 
-                if self.pallet.req_bits() > self.packed.bits_per() {
+                let req_bits = self.pallet.req_bits();
+                if req_bits > self.packed.bits_per() {
                     self.packed.increment_bits_per().expect("In order to overflow bits_per in a PackedInts<usize> Pallet.len() would need to have 2^(usize::MAX) variants.");
                 }
 
                 self.packed.set(idx, pallet_idx);
+
+                req_bits > Self::BIT_LIMIT 
             }
         }
     }
