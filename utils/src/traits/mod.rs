@@ -3,10 +3,10 @@ pub mod bound_int;
 pub mod full_int;
 pub mod wrapper;
 
-pub use bit_len::BitLen;
+pub use bit_len::*;
 
-pub use bound_int::{BoundInt, CyclicBoundInt};
+pub use bound_int::*;
 
-pub use full_int::FullInt;
+pub use full_int::*;
 
-pub use wrapper::Wrapper;
+pub use wrapper::*;
