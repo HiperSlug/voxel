@@ -1,4 +1,4 @@
-use crate::data::Voxel;
+use crate::data::voxel::Voxel;
 
 pub enum Chunk {
     Array(ArrayChunk),

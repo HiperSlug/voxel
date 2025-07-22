@@ -1,3 +1,5 @@
+pub mod object;
+
 pub mod chunk;
 
 pub mod voxel {
@@ -10,5 +12,3 @@ pub mod voxel {
         }
     }
 }
-
-use voxel::Voxel;

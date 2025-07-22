@@ -1,4 +1,5 @@
-use crate::data::{Voxel, chunk::VOXELS_IN_CHUNK};
+use crate::data::voxel::Voxel;
+use crate::data::chunk::VOXELS_IN_CHUNK;
 
 pub struct ArrayChunk {
     inner: [Voxel; VOXELS_IN_CHUNK as usize],

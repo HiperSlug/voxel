@@ -1,4 +1,4 @@
-use crate::data::Voxel;
+use crate::data::voxel::Voxel;
 use crate::data::chunk::VOXELS_IN_CHUNK;
 use utils::PackedInts;
 
