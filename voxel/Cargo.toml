@@ -6,9 +6,6 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.98"
 bevy = { workspace = true }
-utils = { path = "../utils" }
-num-traits = "0.2.19"
-thiserror = "2.0.12"
 
 [features]
 dynamic = ["bevy/dynamic_linking"]

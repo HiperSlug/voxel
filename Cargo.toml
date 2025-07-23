@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["main", "utils", "voxel"]
+members = ["main", "voxel"]
 
 [profile.dev]
 opt-level = 1
