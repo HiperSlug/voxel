@@ -1,8 +1,5 @@
-/// THIS CAN BE HEAVILY OPTIMIZED
-
-
-
-
+use bevy::prelude::*;
+use core::panic;
 use std::array;
 
 fn position_to_index(pos: (u8, u8, u8), level: u8) -> usize {
@@ -10,6 +7,14 @@ fn position_to_index(pos: (u8, u8, u8), level: u8) -> usize {
     let y = (pos.1 >> level) & 1;
     let z = (pos.2 >> level) & 1;
     ((z << 2) | (y << 1) | x) as usize
+}
+
+fn index_to_offset(index: usize) -> Vec3 {
+    Vec3 {
+        x: (index & 1) as f32,
+        y: ((index >> 1) & 1) as f32,
+        z: ((index >> 2) & 1) as f32,
+    }
 }
 
 pub enum OctreeNode<T> {
@@ -90,23 +95,58 @@ impl<T: Copy + PartialEq> OctreeNode<T> {
             }
         }
     }
+
+    fn recursive_get_leafs(
+        &self,
+        level: u8,
+        position: Vec3,
+        size: f32,
+        dst: &mut Vec<(Vec3, f32, T)>,
+    ) {
+        if level == 0 {
+            if let Self::Leaf(t) = self {
+                dst.push((position, size, *t));
+            } else {
+                panic!("Branch at lowest level");
+            }
+            return;
+        }
+
+        match self {
+            Self::Leaf(t) => dst.push((position, size, *t)),
+            Self::Branch(children) => {
+                let half = size / 2.0;
+                for (index, child) in children.iter().enumerate() {
+                    let offset = index_to_offset(index);
+                    let child_pos = position + offset * half;
+                    child.recursive_get_leafs(level - 1, child_pos, half, dst);
+                }
+            }
+        }
+    }
 }
 
-pub struct Octree<T> {
+pub struct Octree<T, const DEPTH: u8> {
     root: OctreeNode<T>,
-    depth: u8,
 }
 
-impl<T: Copy + PartialEq> Octree<T> {
-    pub fn new(root: OctreeNode<T>, depth: u8) -> Self {
-        debug_assert!(depth < 8, "Octree exceeds max depth");
-        Self { root, depth }
+impl<T, const DEPTH: u8> Octree<T, DEPTH>
+where
+    T: Copy + PartialEq,
+{
+    pub fn uniform(value: T) -> Self {
+        Self::from_root(OctreeNode::Leaf(value))
+    }
+
+    pub fn from_root(root: OctreeNode<T>) -> Self {
+        debug_assert!(DEPTH < 8);
+        Self { root }
     }
 
     pub fn get(&self, pos: (u8, u8, u8)) -> T {
         let mut node = &self.root;
 
-        for level in (0..self.depth).rev() {
+        for level in (0..DEPTH).rev() {
             match node {
                 OctreeNode::Leaf(t) => return *t,
                 OctreeNode::Branch(children) => {
@@ -124,6 +164,24 @@ impl<T: Copy + PartialEq> Octree<T> {
     }
 
     pub fn set(&mut self, pos: (u8, u8, u8), to: T) {
-        self.root.recursive_set(to, pos, self.depth - 1);
+        self.root.recursive_set(to, pos, DEPTH - 1);
+    }
+
+    pub fn leaf_iter(&self) -> impl Iterator<Item = (Vec3, f32, T)> + '_ {
+        let mut vec = Vec::new();
+        self.root
+            .recursive_get_leafs(DEPTH - 1, Vec3::ZERO, 2.0f32.powf(DEPTH as f32), &mut vec);
+        vec.into_iter()
+    }
+}
+
+impl<T, const DEPTH: u8> Default for Octree<T, DEPTH>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Self {
+            root: OctreeNode::Leaf(T::default()),
+        }
     }
 }
