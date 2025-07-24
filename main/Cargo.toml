@@ -5,3 +5,8 @@ edition = "2024"
 
 [dependencies]
 voxel = { path = "../voxel" }
+bevy = { workspace = true }
+bevy_flycam = "0.16.1"
+
+[features]
+dynamic = ["bevy/dynamic_linking"]
