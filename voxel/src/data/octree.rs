@@ -167,21 +167,10 @@ where
         self.root.recursive_set(to, pos, DEPTH - 1);
     }
 
-    pub fn leaf_iter(&self) -> impl Iterator<Item = (Vec3, f32, T)> + '_ {
+    pub fn leaf_vec(&self) -> Vec<(Vec3, f32, T)> {
         let mut vec = Vec::new();
         self.root
             .recursive_get_leafs(DEPTH - 1, Vec3::ZERO, 2.0f32.powf(DEPTH as f32), &mut vec);
-        vec.into_iter()
-    }
-}
-
-impl<T, const DEPTH: u8> Default for Octree<T, DEPTH>
-where
-    T: Default,
-{
-    fn default() -> Self {
-        Self {
-            root: OctreeNode::Leaf(T::default()),
-        }
+        vec
     }
 }

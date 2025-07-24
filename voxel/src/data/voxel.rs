@@ -6,7 +6,7 @@ pub struct Voxel {
 }
 
 impl Voxel {
-    pub fn is_solid(&self) -> bool {
-        self.id != 0
+    pub fn is_empty(&self) -> bool {
+        self.id == 0
     }
 }

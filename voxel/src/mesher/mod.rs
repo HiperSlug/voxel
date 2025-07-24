@@ -1,127 +1,85 @@
-use crate::data::Chunk;
 use bevy::prelude::*;
 use bevy::{
     asset::RenderAssetUsages,
     render::mesh::{Indices, PrimitiveTopology},
 };
 
-const NORMALS_AND_CORNERS: [(Vec3, [Vec3; 4]); 6] = [
-    (
-        Vec3::X,
-        [
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 1.0),
-            Vec3::new(1.0, 1.0, 0.0),
-            Vec3::new(1.0, 1.0, 1.0),
-        ],
-    ),
-    (
-        Vec3::NEG_X,
-        [
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 1.0, 1.0),
-        ],
-    ),
-    (
-        Vec3::Y,
-        [
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 1.0, 1.0),
-            Vec3::new(1.0, 1.0, 0.0),
-            Vec3::new(1.0, 1.0, 1.0),
-        ],
-    ),
-    (
-        Vec3::NEG_Y,
-        [
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 1.0),
-        ],
-    ),
-    (
-        Vec3::Z,
-        [
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(1.0, 0.0, 1.0),
-            Vec3::new(0.0, 1.0, 1.0),
-            Vec3::new(1.0, 1.0, 1.0),
-        ],
-    ),
-    (
-        Vec3::NEG_Z,
-        [
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(1.0, 1.0, 0.0),
-        ],
-    ),
-];
+use crate::data::Chunk;
 
-const FACE_UVS: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
-
-#[derive(Default)]
-struct MeshData {
-    positions: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    indices: Vec<u32>,
-    uvs: Vec<[f32; 2]>,
-    index_offset: u32,
-}
-
-impl MeshData {
-    pub fn add_cube(&mut self, position: Vec3, size: f32) {
-        for (normal, corners) in NORMALS_AND_CORNERS {
-            for (corner, uv) in corners.into_iter().zip(FACE_UVS) {
-                let corner_position = position + (corner * size);
-                self.positions.push(corner_position.into());
-                self.normals.push(normal.into());
-                self.uvs.push(uv);
-            }
-
-            let base_index = self.index_offset;
-
-            self.indices.extend([
-                base_index,
-                base_index + 1,
-                base_index + 2,
-                base_index,
-                base_index + 2,
-                base_index + 3,
-            ]);
-
-            self.index_offset += 4;
-        }
-    }
-}
-
-#[derive(Default)]
 pub struct ChunkMeshBuilder {
     pub chunk: Chunk,
 }
 
 impl MeshBuilder for ChunkMeshBuilder {
     fn build(&self) -> Mesh {
-        let mut data = MeshData::default();
+        let mut positions = Vec::new();
+        let mut normals = Vec::new();
+        let mut indices = Vec::new();
+        let mut uvs = Vec::new();
 
-        for (position, size, voxel) in self.chunk.leaf_iter() {
-            if voxel.is_solid() {
-                data.add_cube(position, size);
+        let mut index_offset = 0;
+
+        for (position, size, voxel) in self.chunk.leaf_vec() {
+            if voxel.is_empty() {
+                continue;
+            }
+
+            let min = position;
+            let max = position + Vec3::splat(size);
+
+            let vertices = &[
+                // Front
+                ([min.x, min.y, max.z], [0.0, 0.0, 1.0], [0.0, 0.0]),
+                ([max.x, min.y, max.z], [0.0, 0.0, 1.0], [1.0, 0.0]),
+                ([max.x, max.y, max.z], [0.0, 0.0, 1.0], [1.0, 1.0]),
+                ([min.x, max.y, max.z], [0.0, 0.0, 1.0], [0.0, 1.0]),
+                // Back
+                ([min.x, max.y, min.z], [0.0, 0.0, -1.0], [1.0, 0.0]),
+                ([max.x, max.y, min.z], [0.0, 0.0, -1.0], [0.0, 0.0]),
+                ([max.x, min.y, min.z], [0.0, 0.0, -1.0], [0.0, 1.0]),
+                ([min.x, min.y, min.z], [0.0, 0.0, -1.0], [1.0, 1.0]),
+                // Right
+                ([max.x, min.y, min.z], [1.0, 0.0, 0.0], [0.0, 0.0]),
+                ([max.x, max.y, min.z], [1.0, 0.0, 0.0], [1.0, 0.0]),
+                ([max.x, max.y, max.z], [1.0, 0.0, 0.0], [1.0, 1.0]),
+                ([max.x, min.y, max.z], [1.0, 0.0, 0.0], [0.0, 1.0]),
+                // Left
+                ([min.x, min.y, max.z], [-1.0, 0.0, 0.0], [1.0, 0.0]),
+                ([min.x, max.y, max.z], [-1.0, 0.0, 0.0], [0.0, 0.0]),
+                ([min.x, max.y, min.z], [-1.0, 0.0, 0.0], [0.0, 1.0]),
+                ([min.x, min.y, min.z], [-1.0, 0.0, 0.0], [1.0, 1.0]),
+                // Top
+                ([max.x, max.y, min.z], [0.0, 1.0, 0.0], [1.0, 0.0]),
+                ([min.x, max.y, min.z], [0.0, 1.0, 0.0], [0.0, 0.0]),
+                ([min.x, max.y, max.z], [0.0, 1.0, 0.0], [0.0, 1.0]),
+                ([max.x, max.y, max.z], [0.0, 1.0, 0.0], [1.0, 1.0]),
+                // Bottom
+                ([max.x, min.y, max.z], [0.0, -1.0, 0.0], [0.0, 0.0]),
+                ([min.x, min.y, max.z], [0.0, -1.0, 0.0], [1.0, 0.0]),
+                ([min.x, min.y, min.z], [0.0, -1.0, 0.0], [1.0, 1.0]),
+                ([max.x, min.y, min.z], [0.0, -1.0, 0.0], [0.0, 1.0]),
+            ];
+
+            positions.extend(vertices.iter().map(|(p, _, _)| *p));
+            normals.extend(vertices.iter().map(|(_, n, _)| *n));
+            uvs.extend(vertices.iter().map(|(_, _, uv)| *uv));
+
+            for _ in 0..6 {
+                for i in [0, 1, 2, 2, 3, 0] {
+                    indices.push(i + index_offset);
+                }
+                index_offset += 4;
             }
         }
 
         let mut mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
-            RenderAssetUsages::MAIN_WORLD,
+            RenderAssetUsages::default(),
         );
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, data.positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, data.uvs);
-        mesh.insert_indices(Indices::U32(data.indices));
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh.insert_indices(Indices::U32(indices));
         mesh
     }
 }
