@@ -1,13 +1,13 @@
 pub mod octree;
 
-pub mod object;
-
 pub mod voxel;
 
-use octree::Octree;
+pub mod chunk;
+
+pub mod voxel_volume;
 
 pub use voxel::Voxel;
 
-pub const CHUNK_DEPTH: u8 = 4;
+pub use chunk::Chunk;
 
-pub type Chunk = Octree<Voxel, CHUNK_DEPTH>;
+pub use voxel_volume::VoxelVolume;

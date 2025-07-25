@@ -1,19 +1,20 @@
-use bevy::prelude::*;
+use bevy::{math::U8Vec3, prelude::*};
 use core::panic;
 use std::array;
 
-fn position_to_index(pos: (u8, u8, u8), level: u8) -> usize {
-    let x = (pos.0 >> level) & 1;
-    let y = (pos.1 >> level) & 1;
-    let z = (pos.2 >> level) & 1;
+fn position_to_index(pos: U8Vec3, level: u8) -> usize {
+    let x = (pos.x >> level) & 1;
+    let y = (pos.y >> level) & 1;
+    let z = (pos.z >> level) & 1;
     ((z << 2) | (y << 1) | x) as usize
 }
 
-fn index_to_offset(index: usize) -> Vec3 {
-    Vec3 {
-        x: (index & 1) as f32,
-        y: ((index >> 1) & 1) as f32,
-        z: ((index >> 2) & 1) as f32,
+fn index_to_offset(index: usize) -> U8Vec3 {
+    let index = index as u8;
+    U8Vec3 {
+        x: index & 1,
+        y: (index >> 1) & 1,
+        z: (index >> 2) & 1,
     }
 }
 
@@ -28,7 +29,7 @@ impl<T: Copy + PartialEq> OctreeNode<T> {
         Self::Branch(Box::new(leafs))
     }
 
-    fn recursive_set(&mut self, to: T, pos: (u8, u8, u8), level: u8) -> bool {
+    fn recursive_set(&mut self, to: T, pos: U8Vec3, level: u8) -> bool {
         if level == 0 {
             if let OctreeNode::Leaf(t) = self {
                 *t = to;
@@ -117,7 +118,7 @@ impl<T: Copy + PartialEq> OctreeNode<T> {
             Self::Branch(children) => {
                 let half = size / 2.0;
                 for (index, child) in children.iter().enumerate() {
-                    let offset = index_to_offset(index);
+                    let offset = uvec3_to_vec3(index_to_offset(index));
                     let child_pos = position + offset * half;
                     child.recursive_get_leafs(level - 1, child_pos, half, dst);
                 }
@@ -143,7 +144,7 @@ where
         Self { root }
     }
 
-    pub fn get(&self, pos: (u8, u8, u8)) -> T {
+    pub fn get(&self, pos: U8Vec3) -> T {
         let mut node = &self.root;
 
         for level in (0..DEPTH).rev() {
@@ -163,7 +164,7 @@ where
         }
     }
 
-    pub fn set(&mut self, pos: (u8, u8, u8), to: T) {
+    pub fn set(&mut self, pos: U8Vec3, to: T) {
         self.root.recursive_set(to, pos, DEPTH - 1);
     }
 
@@ -173,4 +174,8 @@ where
             .recursive_get_leafs(DEPTH - 1, Vec3::ZERO, 2.0f32.powf(DEPTH as f32), &mut vec);
         vec
     }
+}
+
+fn uvec3_to_vec3(uvec: U8Vec3) -> Vec3 {
+    Vec3::new(uvec.x as f32, uvec.y as f32, uvec.z as f32)
 }
