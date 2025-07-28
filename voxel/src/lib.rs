@@ -2,11 +2,10 @@ mod data;
 
 mod utils;
 
-pub mod mesher;
+mod mesher;
 
 mod plugin;
 
-pub use plugin::VoxelPlugin;
+mod voxel_volume;
 
-#[cfg(test)]
-mod tests;
+pub use plugin::VoxelPlugin;
