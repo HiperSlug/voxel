@@ -6,6 +6,8 @@ mod mesher;
 
 mod plugin;
 
-mod voxel_volume;
+mod ecs;
+
+mod generator;
 
 pub use plugin::VoxelPlugin;

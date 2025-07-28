@@ -1,6 +1,6 @@
 use super::brick::{self, Brick};
 use crate::utils::subdivide_index;
-use bevy::math::U8Vec3;
+use bevy::math::{U8Vec3, Vec3};
 use std::array;
 
 const BITS: u8 = 1;
@@ -37,4 +37,8 @@ impl Chunk {
         });
         Self { bricks }
     }
+}
+
+pub fn index_to_position(index: usize) -> Vec3 {
+    brick::LENGTH * subdivide_index::<BITS>(index).as_vec3()
 }

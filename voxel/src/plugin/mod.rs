@@ -1,4 +1,5 @@
 use crate::data::volume::{self, VoxelVolume, voxel_viewer::VoxelViewer};
+use crate::ecs::{self, VoxelVolume};
 use bevy::prelude::*;
 pub struct VoxelPlugin;
 
