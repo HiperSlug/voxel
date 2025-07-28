@@ -1,4 +1,6 @@
-pub mod data;
+mod data;
+
+mod utils;
 
 pub mod mesher;
 
