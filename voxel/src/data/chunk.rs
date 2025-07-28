@@ -1,8 +1,9 @@
-use crate::data::brick::{self, Brick};
+use super::brick::{self, Brick};
+use crate::utils::subdivide_index;
 use bevy::math::U8Vec3;
 use std::array;
 
-pub const BITS: u8 = 1;
+const BITS: u8 = 1;
 
 pub const LENGTH_IN_BRICKS: u8 = 1 << BITS;
 
@@ -12,7 +13,7 @@ pub const LENGTH_IN_VOXELS: u8 = LENGTH_IN_BRICKS * brick::LENGTH_IN_VOXELS;
 
 pub const LENGTH: f32 = LENGTH_IN_BRICKS as f32 * brick::LENGTH;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chunk {
     pub bricks: [Brick; VOLUME_IN_BRICKS],
 }
@@ -31,7 +32,7 @@ impl Chunk {
         F: Fn(U8Vec3) -> Brick,
     {
         let bricks = array::from_fn(|index| {
-            let position = super::utils::subdivide_index::<BITS>(index);
+            let position = subdivide_index::<BITS>(index);
             function(position)
         });
         Self { bricks }
