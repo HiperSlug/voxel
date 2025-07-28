@@ -1,50 +1,29 @@
-use bevy::{math::U8Vec3, prelude::*};
-
-use crate::{
-    data::{
-        Chunk, VoxelVolume,
-        octree::Octree,
-        voxel::Voxel,
-        voxel_volume::{VoxelViewer, load_queue, update_voxel_volumes},
-    },
-    mesher,
-};
-
+use crate::data::volume::{self, VoxelVolume, voxel_viewer::VoxelViewer};
+use bevy::prelude::*;
 pub struct VoxelPlugin;
 
 impl Plugin for VoxelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
-            .add_systems(First, (update_voxel_volumes, load_queue).chain());
+        app.add_systems(Startup, setup).add_systems(
+            Update,
+            (
+                volume::active_chunks,
+                (volume::poll_chunk_constructor, volume::poll_chunk_mesher),
+            )
+                .chain(),
+        );
     }
 }
 
-pub fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    let mut chunk = Chunk {
-        data: Octree::uniform(Voxel { id: 1 }),
-    };
-    chunk.data.set(U8Vec3::new(0, 0, 0), Voxel { id: 0 });
-
-    let mesh = mesher::build(&chunk);
-
-    commands.spawn((
-        Mesh3d(meshes.add(mesh)),
-        MeshMaterial3d(materials.add(Color::srgb(1.0, 1.0, 1.0))),
-        Transform::default(),
-    ));
-
+pub fn setup(mut commands: Commands) {
     commands.spawn((
         DirectionalLight::default(),
         Transform::default().looking_at(Vec3::NEG_Y, Vec3::Y),
     ));
 
-    commands.spawn((VoxelViewer { load_distance: 20 }, Transform::default()));
+    commands.spawn((VoxelViewer { view_distance: 3 }, Transform::default()));
 
-    commands.spawn((VoxelVolume::new(), Transform::default()));
+    commands.spawn((VoxelVolume::default(), Transform::default()));
 
-    commands.spawn((PointLight::default(), Transform::from_xyz(9.0, 9.0, 9.0)));
+    commands.spawn((PointLight::default(), Transform::from_xyz(8.0, 0.0, 8.0)));
 }

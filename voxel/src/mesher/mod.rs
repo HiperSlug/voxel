@@ -4,9 +4,11 @@ use bevy::{
     render::mesh::{Indices, PrimitiveTopology},
 };
 
-use crate::data::Chunk;
+use crate::data::chunk::Chunk;
+use crate::data::utils::subdivide_index;
+use crate::data::{brick, chunk, voxel};
 
-pub fn build(chunk: &Chunk) -> Mesh {
+pub fn mesh(chunk: &Chunk) -> Mesh {
     let mut positions = Vec::new();
     let mut normals = Vec::new();
     let mut indices = Vec::new();
@@ -14,15 +16,36 @@ pub fn build(chunk: &Chunk) -> Mesh {
 
     let mut index_offset = 0;
 
-    for (position, size, voxel) in chunk.data.leaf_vec() {
+    let iterator = chunk
+        .bricks
+        .iter()
+        .enumerate()
+        .filter_map(|(i, b)| {
+            let pos = brick::LENGTH * subdivide_index::<{ chunk::BITS }>(i).as_vec3();
+            b.voxels.as_ref().map(|v| (pos, v))
+        })
+        .flat_map(|(brick_pos, v)| {
+            v.iter().enumerate().map(move |(i, v)| {
+                let pos = voxel::LENGTH * subdivide_index::<{ brick::BITS }>(i).as_vec3();
+                if (14..17).contains(&i) {
+                    println!("Voxel pos: {pos}");
+                }
+                (pos + brick_pos, v)
+            })
+        });
+
+    let vec = iterator.clone().collect::<Vec<_>>();
+    println!("VOXELS IN CHUNK: {}", vec.len()); // 2^14
+
+    for (position, voxel) in iterator {
         if voxel.is_empty() {
             continue;
         }
 
         let min = position;
-        let max = position + Vec3::splat(size);
+        let max = position + Vec3::splat(voxel::LENGTH);
 
-        let vertices = &[
+        let data = &[
             // Front
             ([min.x, min.y, max.z], [0.0, 0.0, 1.0], [0.0, 0.0]),
             ([max.x, min.y, max.z], [0.0, 0.0, 1.0], [1.0, 0.0]),
@@ -55,9 +78,9 @@ pub fn build(chunk: &Chunk) -> Mesh {
             ([max.x, min.y, min.z], [0.0, -1.0, 0.0], [0.0, 1.0]),
         ];
 
-        positions.extend(vertices.iter().map(|(p, _, _)| *p));
-        normals.extend(vertices.iter().map(|(_, n, _)| *n));
-        uvs.extend(vertices.iter().map(|(_, _, uv)| *uv));
+        positions.extend(data.iter().map(|(p, _, _)| *p));
+        normals.extend(data.iter().map(|(_, n, _)| *n));
+        uvs.extend(data.iter().map(|(_, _, uv)| *uv));
 
         for _ in 0..6 {
             for i in [0, 1, 2, 2, 3, 0] {
@@ -71,6 +94,9 @@ pub fn build(chunk: &Chunk) -> Mesh {
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),
     );
+
+    println!("{}", positions.len());
+
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
