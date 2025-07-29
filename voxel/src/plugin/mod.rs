@@ -1,30 +1,44 @@
-use crate::data::volume::{self, VoxelVolume, voxel_viewer::VoxelViewer};
-use crate::ecs::{self, VoxelVolume};
 use bevy::prelude::*;
+
+use crate::ecs::{
+    chunk::{poll_chunk_constructors, poll_chunk_meshers},
+    voxel_viewer::VoxelViewer,
+    voxel_volume::{VoxelVolume, chunk_loading},
+};
+
 pub struct VoxelPlugin;
 
 impl Plugin for VoxelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup).add_systems(
+        app.add_systems(Startup, testing_setup).add_systems(
             Update,
             (
-                volume::active_chunks,
-                (volume::poll_chunk_constructor, volume::poll_chunk_mesher),
-            )
-                .chain(),
+                (poll_chunk_constructors, poll_chunk_meshers).chain(),
+                chunk_loading,
+            ),
         );
     }
 }
 
-pub fn setup(mut commands: Commands) {
+pub fn testing_setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.spawn((VoxelViewer { view_distance: 4 }, Transform::default()));
+
+    commands.spawn((VoxelVolume::default(), Transform::default()));
+
     commands.spawn((
         DirectionalLight::default(),
         Transform::default().looking_at(Vec3::NEG_Y, Vec3::Y),
     ));
 
-    commands.spawn((VoxelViewer { view_distance: 3 }, Transform::default()));
+    commands.spawn((PointLight::default(), Transform::from_xyz(0.0, 1.0, 0.0)));
 
-    commands.spawn((VoxelVolume::default(), Transform::default()));
-
-    commands.spawn((PointLight::default(), Transform::from_xyz(8.0, 0.0, 8.0)));
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::from_length(0.5))),
+        Transform::default(),
+        MeshMaterial3d(materials.add(Color::srgb_u8(255, 255, 255))),
+    ));
 }

@@ -1,8 +1,8 @@
-mod voxel_viewer;
+pub mod voxel_viewer;
 
-mod voxel_volume;
+pub mod voxel_volume;
 
-mod chunk;
+pub mod chunk;
 
 use crate::data::chunk::LENGTH as GLOBAL_CHUNK_LENGTH;
 use bevy::math::{IVec3, Vec3};

@@ -13,12 +13,6 @@ const VISIBILITY_MASK: u16 = !ID_MASK;
 pub struct Voxel(u16);
 
 impl Voxel {
-    /// writes metatdata from param
-    #[inline]
-    pub fn new(data: u16) -> Self {
-        Voxel(data)
-    }
-
     /// all metadata set to 0
     #[inline]
     pub fn from_id(id: u16) -> Self {

@@ -1,5 +1,3 @@
-use std::collections::{HashMap, HashSet};
-
 use crate::{
     ecs::{
         chunk::{ChunkConstructor, ChunkData, ChunkMesher},
@@ -9,13 +7,14 @@ use crate::{
     generator,
 };
 use bevy::prelude::*;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Component, Default)]
 pub struct VoxelVolume {
     chunks: HashMap<IVec3, Entity>,
 }
 
-pub fn active_chunks(
+pub fn chunk_loading(
     mut commands: Commands,
     viewers: Query<(&VoxelViewer, &Transform)>,
     volumes: Query<(&mut VoxelVolume, &Transform)>,

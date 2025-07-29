@@ -21,10 +21,14 @@ pub fn mesh(chunk: &Chunk) -> Mesh {
         .bricks
         .iter()
         .enumerate()
-        .map(|(i, b)| (chunk::index_to_position(i), b))
+        .map(|(i, b)| (chunk::index_to_global_position(i), b))
     {
         match brick {
             Brick::Uniform(of) => {
+                if of.is_empty() {
+                    continue;
+                }
+
                 let visibility = of.visibility();
                 let pos = b_offset;
                 let end = b_offset + Vec3::splat(brick::LENGTH);
@@ -107,7 +111,8 @@ pub fn mesh(chunk: &Chunk) -> Mesh {
                 for (v_offset, visibility) in voxels
                     .iter()
                     .enumerate()
-                    .map(|(i, v)| (brick::index_to_position(i), v))
+                    .map(|(i, v)| (brick::index_to_global_position(i), v))
+                    .filter(|(_, v)| v.is_empty())
                     .map(|(p, v)| (p, v.visibility()))
                 {
                     // todo!() greedy meshing
@@ -201,4 +206,3 @@ pub fn mesh(chunk: &Chunk) -> Mesh {
     mesh.insert_indices(Indices::U32(indices));
     mesh
 }
-

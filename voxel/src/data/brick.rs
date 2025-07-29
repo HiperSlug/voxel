@@ -1,6 +1,6 @@
 use super::voxel::{self, Voxel, VoxelId};
-use crate::utils::subdivide_index;
-use bevy::math::{U8Vec3, Vec3};
+use crate::utils::{subdivide_index, subdivide_index_inverse};
+use bevy::math::{I8Vec3, U8Vec3, Vec3};
 use std::array;
 
 const BITS: u8 = 4;
@@ -19,14 +19,6 @@ pub enum Brick {
 }
 
 impl Brick {
-    pub fn from_fn_indices<F>(function: F) -> Self
-    where
-        F: Fn(usize) -> VoxelId,
-    {
-        let voxels = Box::new(array::from_fn(|index| Voxel::from_id(function(index))));
-        Self::NonUniform(voxels)
-    }
-
     pub fn from_fn_positions<F>(function: F) -> Self
     where
         F: Fn(U8Vec3) -> VoxelId,
@@ -46,8 +38,30 @@ impl Brick {
             }
         }
     }
+
+    pub fn get(&self, pos: U8Vec3) -> Voxel {
+        match self {
+            Self::Uniform(of) => *of,
+            Self::NonUniform(voxels) => {
+                let index = subdivide_index_inverse::<BITS>(pos);
+                voxels[index]
+            }
+        }
+    }
 }
 
-pub fn index_to_position(index: usize) -> Vec3 {
+pub fn index_to_voxel_position(index: usize) -> U8Vec3 {
+    subdivide_index::<BITS>(index)
+}
+
+pub fn index_to_global_position(index: usize) -> Vec3 {
     voxel::LENGTH * subdivide_index::<BITS>(index).as_vec3()
+}
+
+pub fn positions() -> impl Iterator<Item = U8Vec3> {
+    (0..VOLUME_IN_VOXELS).map(|i| subdivide_index::<BITS>(i))
+}
+
+pub fn pos_in_bounds(pos: I8Vec3) -> bool {
+    pos.cmpge(I8Vec3::ZERO).all() && pos.cmplt(I8Vec3::splat(LENGTH_IN_VOXELS as i8)).all()
 }
