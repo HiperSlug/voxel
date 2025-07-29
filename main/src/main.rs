@@ -1,11 +1,12 @@
 use bevy::prelude::*;
-use bevy_flycam::FlyCam;
+use bevy_flycam::{FlyCam, NoCameraPlayerPlugin};
 use voxel::{VoxelPlugin, VoxelViewer, VoxelVolume};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(VoxelPlugin)
+        .add_plugins(NoCameraPlayerPlugin)
         .add_systems(Startup, testing)
         .run();
 }
@@ -19,7 +20,7 @@ pub fn testing(
         Camera3d::default(),
         Transform::default(),
         FlyCam,
-        VoxelViewer::new(4),
+        VoxelViewer::new(15),
     ));
 
     commands.spawn((VoxelVolume::default(), Transform::default()));

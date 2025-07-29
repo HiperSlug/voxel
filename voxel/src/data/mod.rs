@@ -1,3 +1,3 @@
 pub mod voxel;
 
-pub mod chunk;
+pub mod raw_chunk;

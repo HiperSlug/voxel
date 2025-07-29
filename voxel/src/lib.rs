@@ -8,8 +8,8 @@ mod plugin;
 
 mod generator;
 
-// pub use plugin::VoxelPlugin;
-
-mod voxel_viewer;
-
 mod voxel_volume;
+
+pub use plugin::VoxelPlugin;
+
+pub use voxel_volume::{VoxelViewer, VoxelVolume};
