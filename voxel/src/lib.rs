@@ -1,13 +1,15 @@
 mod data;
 
-mod utils;
+mod chunk;
 
 mod mesher;
 
 mod plugin;
 
-mod ecs;
-
 mod generator;
 
-pub use plugin::VoxelPlugin;
+// pub use plugin::VoxelPlugin;
+
+mod voxel_viewer;
+
+mod voxel_volume;
