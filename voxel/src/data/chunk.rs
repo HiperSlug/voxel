@@ -18,20 +18,20 @@ pub const LENGTH: f32 = LENGTH_IN_VOXELS as f32 * voxel::LENGTH;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Chunk {
-    Filled(Voxel),
-    Mixed(Box<VoxelArray>),
+    Uniform(Voxel),
+    Mixed(VoxelArray),
 }
 
 impl Chunk {
     pub fn attempt_collapse(&mut self) -> bool {
         use Chunk::*;
         match self {
-            Filled(_) => true,
+            Uniform(_) => true,
             Mixed(voxels) => {
                 let base = voxels[0];
                 let can_collapse = voxels.iter().skip(1).all(|v| *v == base);
                 if can_collapse {
-                    *self = Filled(base);
+                    *self = Uniform(base);
                 }
                 can_collapse
             }
