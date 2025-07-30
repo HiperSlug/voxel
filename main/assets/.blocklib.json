@@ -4,8 +4,8 @@
 		"width": 20,
 		"height": 10
 	},
-	"variants": [
-		{
+	"variants": {
+		"grass": {
 			"name": "Grass",
 			"is_transparent": false,
 			"textures": [
@@ -17,7 +17,7 @@
 				[1, 1]
 			]
 		},
-		{
+		"glass": {
 			"name": "Glass",
 			"is_transparent": true,
 			"textures": [
@@ -29,5 +29,5 @@
 				[4, 0]
 			]
 		}
-	]
+	}
 }
