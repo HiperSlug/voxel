@@ -5,7 +5,7 @@ use voxel::{VoxelPlugin, VoxelViewer, VoxelVolume};
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(VoxelPlugin)
+        .add_plugins(VoxelPlugin::new("std.blocklib.ron"))
         .add_plugins(NoCameraPlayerPlugin)
         .add_systems(Startup, testing)
         .add_systems(Update, moving)
