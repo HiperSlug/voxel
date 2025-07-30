@@ -8,6 +8,7 @@ fn main() {
         .add_plugins(VoxelPlugin)
         .add_plugins(NoCameraPlayerPlugin)
         .add_systems(Startup, testing)
+        .add_systems(Update, moving)
         .run();
 }
 
@@ -20,10 +21,14 @@ pub fn testing(
         Camera3d::default(),
         Transform::default(),
         FlyCam,
-        VoxelViewer::new(15),
+        VoxelViewer::new(32),
     ));
 
-    commands.spawn((VoxelVolume::default(), Transform::default()));
+    commands.spawn((
+        VoxelVolume::default(),
+        Transform::default(),
+        Visibility::Visible,
+    ));
 
     commands.spawn((
         DirectionalLight::default(),
@@ -35,4 +40,10 @@ pub fn testing(
         Transform::default(),
         MeshMaterial3d(materials.add(Color::srgb_u8(255, 255, 255))),
     ));
+}
+
+pub fn moving(query: Query<&mut Transform, With<VoxelVolume>>, time: Res<Time>) {
+    for mut t in query {
+        t.translation += Vec3::new(1.0, 0.0, 0.0) * time.delta_secs()
+    }
 }

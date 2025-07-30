@@ -1,7 +1,7 @@
 use crate::{
-    chunk::{Chunk, ChunkConstructorTask, ChunkData, ChunkMesherTask},
+    chunk::{ChunkFlag, ChunkConstructorTask, ChunkData, ChunkMesherTask},
     data::{
-        raw_chunk::{self, RawChunk},
+        chunk::{self, Chunk},
         voxel::{self, Voxel},
     },
 };
@@ -20,7 +20,7 @@ pub fn handle_chunk_meshing(
     query: Query<
         (Entity, &ChunkData),
         (
-            With<Chunk>,
+            With<ChunkFlag>,
             Without<Mesh3d>,
             Without<ChunkConstructorTask>,
             Without<ChunkMesherTask>,
@@ -30,10 +30,10 @@ pub fn handle_chunk_meshing(
 ) {
     for (entity, chunk_data) in query {
         match &chunk_data.0 {
-            RawChunk::Uniform(_) => {
+            Chunk::Uniform(_) => {
                 commands.entity(entity).insert(NullMesh);
             }
-            RawChunk::Mixed(voxels) => {
+            Chunk::Mixed(voxels) => {
                 let guard = voxels.load();
                 commands
                     .entity(entity)
@@ -44,13 +44,13 @@ pub fn handle_chunk_meshing(
 }
 
 pub fn mesh(voxels: &[Voxel]) -> Mesh {
-    let mut buffer = GreedyQuadsBuffer::new(raw_chunk::PADDED_VOLUME_IN_VOXELS);
+    let mut buffer = GreedyQuadsBuffer::new(chunk::PADDED_VOLUME_IN_VOXELS);
     let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;
     greedy_quads(
         voxels,
-        &raw_chunk::ChunkShape {},
+        &chunk::Shape {},
         [0; 3],
-        [raw_chunk::PADDED_LENGTH_IN_VOXELS - 1; 3],
+        [chunk::PADDED_LENGTH_IN_VOXELS - 1; 3],
         &faces,
         &mut buffer,
     );

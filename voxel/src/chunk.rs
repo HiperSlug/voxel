@@ -1,21 +1,21 @@
-use crate::data::raw_chunk::RawChunk;
+use crate::data::chunk::Chunk;
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, poll_once};
 use rand::random;
 
 #[derive(Debug, Component)]
-pub struct Chunk;
+pub struct ChunkFlag;
 
 #[derive(Debug, Component)]
-pub struct ChunkData(pub RawChunk);
+pub struct ChunkData(pub Chunk);
 
 #[derive(Debug, Component)]
-pub struct ChunkConstructorTask(pub Task<RawChunk>);
+pub struct ChunkConstructorTask(pub Task<Chunk>);
 
 impl ChunkConstructorTask {
     pub fn new<C>(constructor: C) -> Self
     where
-        C: Fn() -> RawChunk + Send + 'static,
+        C: Fn() -> Chunk + Send + 'static,
     {
         let thread_pool = AsyncComputeTaskPool::get();
         let task = thread_pool.spawn(async move { constructor() });

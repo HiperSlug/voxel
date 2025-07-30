@@ -4,8 +4,8 @@ use std::collections::{HashMap, HashSet};
 pub use voxel_viewer::*;
 
 use crate::{
-    chunk::{Chunk, ChunkConstructorTask},
-    data::raw_chunk,
+    chunk::{ChunkFlag, ChunkConstructorTask},
+    data::chunk,
     generator,
 };
 
@@ -47,11 +47,11 @@ mod voxel_viewer {
 }
 
 pub fn global_pos_to_chunk_pos(global: Vec3) -> IVec3 {
-    (global / raw_chunk::LENGTH).floor().as_ivec3()
+    (global / chunk::LENGTH).floor().as_ivec3()
 }
 
 pub fn chunk_pos_to_global_pos(chunk_pos: IVec3) -> Vec3 {
-    chunk_pos.as_vec3() * raw_chunk::LENGTH
+    chunk_pos.as_vec3() * chunk::LENGTH
 }
 
 #[derive(Debug, Component, Default)]
@@ -82,9 +82,9 @@ pub fn update_visible_chunks(
 
                 let child_entity = commands
                     .spawn((
-                        Chunk,
+                        ChunkFlag,
                         Transform::from_translation(chunk_pos_to_global_pos(chunk_pos)),
-                        ChunkConstructorTask::new(move || generator::noise(chunk_pos)),
+                        ChunkConstructorTask::new(move || generator::temp(chunk_pos)),
                     ))
                     .id();
 
