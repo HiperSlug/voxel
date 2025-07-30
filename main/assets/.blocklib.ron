@@ -1,0 +1,46 @@
+BlockLibrary(
+	materials: [
+        (
+            path: "opaque.mat.toml",
+            size: (20, 10),
+        ),
+        (
+            path: "transparent.mat.toml",
+            size: (20, 10),
+        ),
+    ],
+	blocks: {
+        "air": (
+            display_name: "Air",
+            block_model: Empty
+        ),
+		"grass": (
+			display_name: "Grass",
+			block_model: Cube(
+                material_index: 0,
+                texture_coords: (
+                    top: (0, 1),
+                    bottom: (2, 1),
+                    front: (1, 1),
+                    back: (1, 1),
+                    right: (1, 1),
+                    left: (1, 1),
+                ),
+            ),
+		),
+		"glass": (
+			display_name: "Glass",
+			block_model: Cube(
+                material_index: 1,
+                texture_coords: (
+                    top: (4, 0),
+                    bottom: (4, 0),
+                    front: (4, 0),
+                    back: (4, 0),
+                    right: (4, 0),
+                    left: (4, 0),
+                ),
+            ),
+		),
+	},
+)

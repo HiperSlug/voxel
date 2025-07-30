@@ -1,0 +1,5 @@
+type = "StandardMaterial"
+
+[material]
+base_color_texture = "blocks.png"
+alpha_mode = "Blend"
