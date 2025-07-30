@@ -1,22 +1,26 @@
 use anyhow::Context;
 use bevy::{
-    asset::{Asset, AssetLoader, LoadContext, io::Reader},
+    asset::{io::Reader, Asset, AssetLoader, LoadContext},
     prelude::*,
     reflect::TypePath,
     tasks::ConditionalSendFuture,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use raw::{BlockLibraryRaw, SpriteSheetRaw};
 pub use raw::BlockVariant;
 
 mod raw {
+	use std::collections::HashMap;
+
 	use serde::{Deserialize, Serialize};
 	use bevy::math::UVec2;
 
 	#[derive(Debug, Serialize, Deserialize)]
 	pub struct BlockLibraryRaw {
 		pub atlas: SpriteSheetRaw,
-		pub variants: Vec<BlockVariant>,
+		pub variants: HashMap<String, BlockVariant>,
 	}
 
 	#[derive(Debug, Serialize, Deserialize)]
@@ -37,14 +41,21 @@ mod raw {
 #[derive(Debug, Asset, TypePath)]
 pub struct BlockLibrary {
 	pub atlas: SpriteSheet,
-	pub variants: Vec<BlockVariant>,
+	pub variants: HashMap<String, BlockVariant>,
 }
 
 #[derive(Debug)]
 pub struct SpriteSheet {
-    pub handle: Handle<Image>,
+    pub image: Handle<Image>,
     pub width: usize,
     pub height: usize,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub enum BlockLibraryLoaderSettings {
+	#[default]
+	Json,
+	Ron,
 }
 
 #[derive(Default)]
@@ -52,33 +63,44 @@ pub struct BlockLibraryLoader;
 
 impl AssetLoader for BlockLibraryLoader {
     type Asset = BlockLibrary;
-    type Settings = ();
+    type Settings = BlockLibraryLoaderSettings;
     type Error = anyhow::Error;
 
     fn extensions(&self) -> &[&str] {
-        &["blocklib.ron"]
+        &["blocklib.json", "blocklib.ron"]
     }
 
     fn load(
         &self,
         rdr: &mut dyn Reader,
-        _settings: &Self::Settings,
+        settings: &Self::Settings,
         load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async move {
-            let mut bytes = Vec::new();
+			let mut bytes = Vec::new();
             rdr.read_to_end(&mut bytes)
                 .await
                 .context("Failed to read asset bytes for BlockLibrary")?;
+			
+			use BlockLibraryLoaderSettings::*;
+			let raw = match settings {
+				Json => {
+					serde_json::de::from_slice::<BlockLibraryRaw>(&bytes)
+                		.context("Failed to deserialize BlockLibraryRaw from JSON")?
+				},
+				Ron => {
+					ron::de::from_bytes::<BlockLibraryRaw>(&bytes)
+                		.context("Failed to deserialize BlockLibraryRaw from RON")?
+				},
+			};
 
-            let BlockLibraryRaw { atlas: SpriteSheetRaw { path, width, height }, variants } = ron::de::from_bytes::<BlockLibraryRaw>(&bytes)
-                .context("Failed to deserialize BlockLibraryRaw from RON")?;
+            let BlockLibraryRaw { atlas: SpriteSheetRaw { path, width, height }, variants } = raw;
 
-			let handle = load_context.load(path);
+			let image = load_context.load(path);
 			
 			let lib = BlockLibrary {
 				atlas: SpriteSheet {
-					handle,
+					image,
 					width,
 					height,
 				},
@@ -97,7 +119,8 @@ pub fn load_block_library(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
 ) {
-	let handle = asset_server.load(".blocklib.ron");
+	// TODO make the path configurable
+	let handle = asset_server.load(".blocklib.json");
 	commands.insert_resource(BlockLibraryHandle(handle));
 }
 

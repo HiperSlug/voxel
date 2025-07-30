@@ -1,0 +1,33 @@
+{
+	"atlas": {
+		"path": "blocks.png",
+		"width": 20,
+		"height": 10
+	},
+	"variants": [
+		{
+			"name": "Grass",
+			"is_transparent": false,
+			"textures": [
+				[0, 1],
+				[2, 1],
+				[1, 1],
+				[1, 1],
+				[1, 1],
+				[1, 1]
+			]
+		},
+		{
+			"name": "Glass",
+			"is_transparent": true,
+			"textures": [
+				[4, 0],
+				[4, 0],
+				[4, 0],
+				[4, 0],
+				[4, 0],
+				[4, 0]
+			]
+		}
+	]
+}
