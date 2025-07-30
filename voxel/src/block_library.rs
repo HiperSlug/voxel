@@ -100,3 +100,13 @@ pub fn load_block_library(
 	let handle = asset_server.load(".blocklib.ron");
 	commands.insert_resource(BlockLibraryHandle(handle));
 }
+
+pub struct BlockLibraryPlugin;
+
+impl Plugin for BlockLibraryPlugin {
+	fn build(&self, app: &mut App) {
+		app.init_asset::<BlockLibrary>()
+            .init_asset_loader::<BlockLibraryLoader>()
+            .add_systems(Startup, load_block_library);
+	}
+}

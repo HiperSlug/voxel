@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    block_library::{load_block_library, BlockLibrary, BlockLibraryLoader},
+    block_library::BlockLibraryPlugin,
     chunk, mesher, voxel_volume,
 };
 
@@ -9,7 +9,8 @@ pub struct VoxelPlugin;
 
 impl Plugin for VoxelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.add_plugins(BlockLibraryPlugin)
+        .add_systems(
             Update,
             ((
                 (
@@ -20,9 +21,5 @@ impl Plugin for VoxelPlugin {
             )
                 .chain(),),
         );
-
-        app.init_asset::<BlockLibrary>()
-            .init_asset_loader::<BlockLibraryLoader>()
-            .add_systems(Startup, load_block_library);
     }
 }
