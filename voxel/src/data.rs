@@ -1,28 +1,8 @@
 pub mod voxel {
-    use block_mesh::{MergeVoxel, Voxel as Visibility, VoxelVisibility};
-
     pub const LENGTH: f32 = 0.5;
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
     pub struct Voxel(pub u16);
-
-    impl Visibility for Voxel {
-        fn get_visibility(&self) -> VoxelVisibility {
-            if self.0 == 0 {
-                VoxelVisibility::Empty
-            } else {
-                VoxelVisibility::Opaque
-            }
-        }
-    }
-
-    impl MergeVoxel for Voxel {
-        type MergeValue = u16;
-
-        fn merge_value(&self) -> Self::MergeValue {
-            self.0
-        }
-    }
 }
 
 pub mod chunk {

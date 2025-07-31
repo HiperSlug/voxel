@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 pub use voxel_viewer::*;
 
 use crate::{
-    chunk::{ChunkFlag, ChunkConstructorTask},
+    chunk::{ChunkConstructorTask, ChunkFlag},
     data::chunk,
     generator,
 };

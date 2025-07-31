@@ -4,12 +4,12 @@ use super::*;
 use arc_swap::ArcSwap;
 
 #[derive(Debug, Resource)]
-pub struct BlockLibraryHandle(Handle<BlockLibrary>);
+struct BlockLibraryHandle(Handle<BlockLibrary>);
 
 #[derive(Debug, Resource, Default)]
-pub struct SharedBlockLibrary(ArcSwap<BlockLibrary>);
+pub struct SharedBlockLibrary(pub ArcSwap<BlockLibrary>);
 
-pub fn update_shared_block_library(
+fn update_shared_block_library(
 	mut events: EventReader<AssetEvent<BlockLibrary>>,
     shared: Res<SharedBlockLibrary>,
     handle: Res<BlockLibraryHandle>,
@@ -28,25 +28,25 @@ pub fn update_shared_block_library(
 }
 
 #[derive(Debug, Resource)]
-pub struct BlockLibraryPath(pub String);
+struct BlockLibraryPath(&'static str);
 
-pub fn load_block_library_handle(
+fn load_block_library_handle(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
 	path: Res<BlockLibraryPath>,
 ) {
 	info!("Loading BlockLibrary from path: {}", path.0);
-	let handle = asset_server.load(&path.0);
+	let handle = asset_server.load(path.0);
 	commands.insert_resource(BlockLibraryHandle(handle));
 	commands.remove_resource::<BlockLibraryPath>();
 }
 
-pub struct SharedBlockLibraryPlugin(String);
+pub struct SharedBlockLibraryPlugin(pub &'static str);
 
 impl Plugin for SharedBlockLibraryPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.insert_resource(BlockLibraryPath(self.0.clone()))
+			.insert_resource(BlockLibraryPath(self.0))
 			.init_resource::<SharedBlockLibrary>()
 			.add_systems(Startup, load_block_library_handle)
 			.add_systems(Update, update_shared_block_library);

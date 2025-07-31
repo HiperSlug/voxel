@@ -14,4 +14,4 @@ pub use plugin::VoxelPlugin;
 
 pub use voxel_volume::{VoxelViewer, VoxelVolume};
 
-mod block_library;
+pub mod block_library;

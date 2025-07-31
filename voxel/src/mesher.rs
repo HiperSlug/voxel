@@ -1,11 +1,14 @@
+use std::collections::HashMap;
+
 use crate::{
-    chunk::{ChunkFlag, ChunkConstructorTask, ChunkData, ChunkMesherTask},
+    block_library::{shared::SharedBlockLibrary, BlockLibrary, BlockModel, BlockModelCube},
+    chunk::{ChunkConstructorTask, ChunkData, ChunkFlag, ChunkMesherTask},
     data::{
         chunk::{self, Chunk},
         voxel::{self, Voxel},
     },
 };
-use bevy::prelude::*;
+use bevy::{math::U8Vec3, prelude::*};
 use bevy::{
     asset::RenderAssetUsages,
     render::mesh::{Indices, PrimitiveTopology},
@@ -27,6 +30,7 @@ pub fn handle_chunk_meshing(
             Without<NullMesh>,
         ),
     >,
+    shared_block_lib: Res<SharedBlockLibrary>,
 ) {
     for (entity, chunk_data) in query {
         match &chunk_data.0 {
@@ -34,16 +38,17 @@ pub fn handle_chunk_meshing(
                 commands.entity(entity).insert(NullMesh);
             }
             Chunk::Mixed(voxels) => {
-                let guard = voxels.load();
+                let vox_guard = voxels.load();
+                let lib_guard = shared_block_lib.0.load();
                 commands
                     .entity(entity)
-                    .insert(ChunkMesherTask::new(move || mesh(&**guard)));
+                    .insert(ChunkMesherTask::new(move || mesh(&**vox_guard, &**lib_guard)));
             }
         };
     }
 }
 
-pub fn mesh(voxels: &[Voxel]) -> Mesh {
+pub fn mesh(voxels: &[Voxel], block_lib: &BlockLibrary) -> Vec<(Mesh, StandardMaterial)> {
     let mut buffer = GreedyQuadsBuffer::new(chunk::PADDED_VOLUME_IN_VOXELS);
     let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;
     greedy_quads(
@@ -53,7 +58,23 @@ pub fn mesh(voxels: &[Voxel]) -> Mesh {
         [chunk::PADDED_LENGTH_IN_VOXELS - 1; 3],
         &faces,
         &mut buffer,
+        block_lib
     );
+
+    let mut material_to_quads = HashMap::new();
+
+    for (face_index, (unoriented_group, face)) in buffer.quads.groups.into_iter().zip(&faces).enumerate() {
+        for quad in unoriented_group {
+            let v_index = chunk::linearize(quad.minimum.map(|i| i as u8).into());
+            let voxel = voxels[v_index];
+            let block_variant = block_lib.variants[voxel.id() as usize];
+            let material = match block_variant.block_model {
+                BlockModel::Cube(c) => {
+                    c.material_index
+                }
+            }
+        }
+    }
 
     let quad_count = buffer.quads.num_quads();
     let index_count = quad_count * 6;

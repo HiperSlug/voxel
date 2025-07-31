@@ -1,7 +1,6 @@
 use crate::data::chunk::Chunk;
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, poll_once};
-use rand::random;
 
 #[derive(Debug, Component)]
 pub struct ChunkFlag;
@@ -38,12 +37,12 @@ pub fn poll_chunk_constructors(
 }
 
 #[derive(Debug, Component)]
-pub struct ChunkMesherTask(pub Task<Mesh>);
+pub struct ChunkMesherTask(pub Task<Vec<(Mesh, StandardMaterial)>>);
 
 impl ChunkMesherTask {
     pub fn new<M>(mesher: M) -> Self
     where
-        M: Fn() -> Mesh + Send + 'static,
+        M: Fn() -> Vec<(Mesh, StandardMaterial)> + Send + 'static,
     {
         let thread_pool = AsyncComputeTaskPool::get();
         let task = thread_pool.spawn(async move { mesher() });
@@ -58,11 +57,17 @@ pub fn poll_chunk_meshers(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (entity, mut task) in query {
-        if let Some(mesh) = block_on(poll_once(&mut task.0)) {
-            commands.entity(entity).remove::<ChunkMesherTask>().insert((
-                Mesh3d(meshes.add(mesh)),
-                MeshMaterial3d(materials.add(Color::srgb_u8(random(), random(), random()))), // This material is temporary
-            ));
+        if let Some(out_meshes) = block_on(poll_once(&mut task.0)) {
+            let mut add_children = Vec::with_capacity(out_meshes.len());
+            for (me, mat) in out_meshes {
+                let mesh_entity = commands.spawn((
+                    Mesh3d(meshes.add(me)),
+                    MeshMaterial3d(materials.add(mat)),
+                )).id();
+                add_children.push(mesh_entity);
+            };
+            let mut e_commands = commands.entity(entity);
+            e_commands.remove::<ChunkMesherTask>().add_children(&add_children);
         }
     }
 }

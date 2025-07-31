@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use bevy_flycam::{FlyCam, NoCameraPlayerPlugin};
-use voxel::{VoxelPlugin, VoxelViewer, VoxelVolume};
+use voxel::{block_library::shared::SharedBlockLibraryPlugin, VoxelPlugin, VoxelViewer, VoxelVolume};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(VoxelPlugin::new(".blocklib.ron"))
+        .add_plugins(VoxelPlugin)
+        .add_plugins(SharedBlockLibraryPlugin("block_lib/blocks.bllib.json"))
         .add_plugins(NoCameraPlayerPlugin)
         .add_systems(Startup, testing)
         .add_systems(Update, moving)

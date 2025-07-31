@@ -17,8 +17,7 @@ pub struct Material {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BlockVariant {
     pub display_name: String,
-    pub collision_aabbs: Vec<Aabb3d>,
-    pub is_transparent: bool,
+    pub collision_aabbs: Option<Vec<Aabb3d>>,
     pub block_model: BlockModel,
 }
 
@@ -26,12 +25,12 @@ pub struct BlockVariant {
 pub enum BlockModel {
     Empty,
     Cube(BlockModelCube),
-    Mesh(BlockModelMesh),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BlockModelCube {
     pub material_index: usize,
+    pub is_transparent: bool,
     pub texture_coords: TextureCoords,
 }
 
@@ -43,10 +42,4 @@ pub struct TextureCoords {
     pub neg_y: UVec2,
     pub pos_z: UVec2,
     pub neg_z: UVec2,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BlockModelMesh {
-    pub path: String,
-    pub material_index: usize,
 }
