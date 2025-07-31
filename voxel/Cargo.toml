@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1.0.98"
 arc-swap = "1.7.1"
 bevy = { workspace = true }
-bevy_materialize = "0.7.1"
+bevy_materialize = { version = "0.7.1", features = ["json"] }
 block-mesh = "0.2.0"
 fastnoise-lite = "1.1.1"
 ndshape = "0.3.0"

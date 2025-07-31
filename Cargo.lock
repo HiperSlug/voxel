@@ -830,6 +830,7 @@ checksum = "d23ed413a9a1d205a4dc25959b111e0531584d205c74823962d44b126284aae8"
 dependencies = [
  "bevy",
  "serde",
+ "serde_json",
  "thiserror 2.0.12",
  "toml",
 ]
