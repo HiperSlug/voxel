@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_flycam::{FlyCam, NoCameraPlayerPlugin};
-use voxel::{block_library::shared::SharedBlockLibraryPlugin, VoxelPlugin, VoxelViewer, VoxelVolume};
+use voxel::{
+    VoxelPlugin, VoxelViewer, VoxelVolume, block_library::shared::SharedBlockLibraryPlugin,
+};
 
 fn main() {
     App::new()

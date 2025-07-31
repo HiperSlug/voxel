@@ -10,31 +10,31 @@ pub struct BlockLibrary {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Material {
-    pub path: String,
+    pub path: String, // This path is loaded at runtime
     pub size: UVec2,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)] // Clone for shared ref
 pub struct BlockVariant {
     pub display_name: String,
     pub collision_aabbs: Option<Vec<Aabb3d>>,
     pub block_model: BlockModel,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone )] // Clone for shared ref
 pub enum BlockModel {
     Empty,
     Cube(BlockModelCube),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)] // Clone for shared ref
 pub struct BlockModelCube {
     pub material_index: usize,
-    pub is_transparent: bool,
+    pub is_translucent: bool,
     pub texture_coords: TextureCoords,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)] // Clone for shared ref
 pub struct TextureCoords {
     pub pos_x: UVec2,
     pub neg_x: UVec2,
