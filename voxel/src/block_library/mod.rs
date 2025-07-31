@@ -15,7 +15,7 @@ use std::{
 /// Deserializable structs. The only difference is that they store sub-assets as paths instead of handles
 mod raw;
 
-#[derive(Debug, Asset, TypePath)]
+#[derive(Debug, Asset, TypePath, Clone)]
 pub struct BlockLibrary {
     pub materials: Vec<Material>,
     pub variants: Vec<BlockVariant>,
@@ -23,13 +23,13 @@ pub struct BlockLibrary {
     pub index_to_name: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Material {
     pub handle: Handle<StandardMaterial>,
     pub size: UVec2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockVariant {
     pub display_name: String,
     pub collision_aabbs: Vec<Aabb3d>,
@@ -37,7 +37,7 @@ pub struct BlockVariant {
     pub block_model: BlockModel,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BlockModel {
     Empty,
     Cube(BlockModelCube),
@@ -47,7 +47,7 @@ pub enum BlockModel {
 // the raw::BlockModelCube has no sub-assets and so can be used as is
 pub use raw::BlockModelCube;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockModelMesh {
     pub handle: Handle<Mesh>,
     pub material_index: usize,

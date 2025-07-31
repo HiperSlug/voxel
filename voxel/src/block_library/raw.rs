@@ -29,13 +29,13 @@ pub enum BlockModel {
     Mesh(BlockModelMesh),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BlockModelCube {
     pub material_index: usize,
     pub texture_coords: TextureCoords,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TextureCoords {
     pub pos_x: UVec2,
     pub neg_x: UVec2,
