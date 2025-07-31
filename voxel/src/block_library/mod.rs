@@ -13,7 +13,6 @@ pub use raw::{
     TextureCoords,
 };
 
-use anyhow::Context;
 use bevy::{
     asset::{Asset, AssetLoader, LoadContext, io::Reader},
     prelude::*,
@@ -47,25 +46,22 @@ pub struct BlockLibrary {
 
 impl VoxelContext<Voxel> for BlockLibrary {
     fn get_visibility(&self, voxel: &Voxel) -> VoxelVisibility {
-        match self.variants.get(voxel.0 as usize) {
-            Some(variant) => {
-                match &variant.block_model {
-                    BlockModel::Empty => {
-                        VoxelVisibility::Empty
-                    },
-                    BlockModel::Cube(c) => {
-                        if c.is_translucent {
-                            VoxelVisibility::Translucent
-                        } else {
-                            VoxelVisibility::Opaque
-                        }
+        if let Some(variant) = self.variants.get(voxel.0 as usize) {
+            match &variant.block_model {
+                BlockModel::Empty => {
+                    VoxelVisibility::Empty
+                },
+                BlockModel::Cube(c) => {
+                    if c.is_translucent {
+                        VoxelVisibility::Translucent
+                    } else {
+                        VoxelVisibility::Opaque
                     }
                 }
-            },
-            None => {
-                error!("Could not find voxel {:?} in block_library {:?}", voxel, self);
-                VoxelVisibility::Empty
-            },
+            }
+        } else {
+            error!("Could not find voxel {:?} in block_library {:?}", voxel, self);
+            VoxelVisibility::Empty
         }
     }
 }
@@ -87,7 +83,8 @@ impl MergeVoxelContext<Voxel> for BlockLibrary {
 pub struct BlockLibraryLoader;
 
 impl AssetLoader for BlockLibraryLoader {
-    type Asset = BlockLibrary; // POSSIBLY WRAP THIS PART IN AN ARC?
+    // TODO: Wait for bevy to allow async assets
+    type Asset = BlockLibrary;
     type Settings = ();
     type Error = anyhow::Error;
 
@@ -103,16 +100,13 @@ impl AssetLoader for BlockLibraryLoader {
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async move {
             let mut bytes = Vec::new();
-            reader
-                .read_to_end(&mut bytes)
-                .await
-                .context("Failed to read asset bytes for BlockLibrary")?;
+            reader.read_to_end(&mut bytes)
+                .await?;
 
             let raw::BlockLibrary {
                 materials: raw_materials,
                 blocks: raw_blocks,
-            } = serde_json::de::from_slice::<raw::BlockLibrary>(&bytes)
-                .context("Failed to deserialize raw::BlockLibrary from JSON")?;
+            } = serde_json::de::from_slice::<raw::BlockLibrary>(&bytes)?;
 
             let materials = raw_materials
                 .into_iter()
