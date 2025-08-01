@@ -10,7 +10,7 @@ pub mod chunk {
     // possible solution: VoxelToolRead -> read access to an arbitrary volume idk how that would work
     use super::voxel::{self, Voxel};
     use arc_swap::ArcSwap;
-    use bevy::math::U8Vec3;
+    use bevy::math::UVec3;
     use ndshape::{ConstPow2Shape3u32, ConstShape};
 
     const BITS: u32 = 5;
@@ -48,11 +48,11 @@ pub mod chunk {
         }
     }
 
-    pub fn linearize(pos: U8Vec3) -> usize {
-        Shape::linearize(pos.to_array().map(|num| num as u32)) as usize
+    pub fn linearize(pos: UVec3) -> usize {
+        Shape::linearize(pos.to_array()) as usize
     }
 
-    pub fn delinearize(index: usize) -> U8Vec3 {
-        Shape::delinearize(index as u32).map(|d| d as u8).into()
+    pub fn delinearize(index: usize) -> UVec3 {
+        Shape::delinearize(index as u32).into()
     }
 }

@@ -1,17 +1,12 @@
 /// Deserializable versions
-/// 
+///
 /// Only difference is that they store a `path: String` to any dependencies
 mod raw;
 /// Workaround until bevy allows resources to be threaded.
 pub mod shared;
 
 // these structs do not have any external dependencies
-pub use raw::{
-    BlockVariant,
-    BlockModel,
-    BlockModelCube,
-    TextureCoords,
-};
+pub use raw::{BlockModel, BlockModelCube, BlockVariant, TextureCoords};
 
 use bevy::{
     asset::{Asset, AssetLoader, LoadContext, io::Reader},
@@ -20,7 +15,7 @@ use bevy::{
     tasks::ConditionalSendFuture,
 };
 use bevy_materialize::{MaterializePlugin, prelude::JsonMaterialDeserializer};
-use block_mesh::{VoxelContext, MergeVoxelContext, VoxelVisibility};
+use block_mesh::{MergeVoxelContext, VoxelContext, VoxelVisibility};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -47,10 +42,10 @@ pub struct BlockLibrary {
 impl VoxelContext<Voxel> for BlockLibrary {
     fn get_visibility(&self, voxel: &Voxel) -> VoxelVisibility {
         if let Some(variant) = self.variants.get(voxel.0 as usize) {
+            if variant.is_empty.unwrap_or(false) {
+                return VoxelVisibility::Empty;
+            }
             match &variant.block_model {
-                BlockModel::Empty => {
-                    VoxelVisibility::Empty
-                },
                 BlockModel::Cube(c) => {
                     if c.is_translucent {
                         VoxelVisibility::Translucent
@@ -60,7 +55,10 @@ impl VoxelContext<Voxel> for BlockLibrary {
                 }
             }
         } else {
-            error!("Could not find voxel {:?} in block_library {:?}", voxel, self);
+            error!(
+                "Could not find voxel {:?} in block_library {:?}",
+                voxel, self
+            );
             VoxelVisibility::Empty
         }
     }
@@ -100,8 +98,7 @@ impl AssetLoader for BlockLibraryLoader {
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async move {
             let mut bytes = Vec::new();
-            reader.read_to_end(&mut bytes)
-                .await?;
+            reader.read_to_end(&mut bytes).await?;
 
             let raw::BlockLibrary {
                 materials: raw_materials,
@@ -124,11 +121,11 @@ impl AssetLoader for BlockLibraryLoader {
             let mut variants = Vec::with_capacity(capacity);
 
             let mut name_to_index = HashMap::new();
-            let mut index_to_name = Vec::with_capacity(capacity);            
+            let mut index_to_name = Vec::with_capacity(capacity);
 
             for (i, (name, variant)) in raw_blocks.into_iter().enumerate() {
                 variants.push(variant);
-                
+
                 name_to_index.insert(name.clone(), i);
                 index_to_name.push(name);
             }

@@ -18,12 +18,12 @@ pub struct Material {
 pub struct BlockVariant {
     pub display_name: String,
     pub collision_aabbs: Option<Vec<Aabb3d>>,
+    pub is_empty: Option<bool>,
     pub block_model: BlockModel,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone )] // Clone for shared ref
+#[derive(Debug, Serialize, Deserialize, Clone)] // Clone for shared ref
 pub enum BlockModel {
-    Empty,
     Cube(BlockModelCube),
 }
 

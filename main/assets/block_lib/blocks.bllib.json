@@ -1,58 +1,71 @@
 {
-    "materials": [
-        {
-            "path": "opaque.mat.json",
-            "size": [20, 10]
-        },
-        {
-            "path": "transparent.mat.json",
-            "size": [20, 10]
-        }
-    ],
-    "blocks": {
-        "air": {
-            "display_name": "Air",
-            "collision_aabbs": [],
-            "is_transparent": true,
-            "block_model": {
-                "Empty": {}
-            }
-        },
-        "grass": {
-            "display_name": "Grass Block",
-            "collision_aabbs": [
-                [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]
-            ],
-            "is_transparent": false,
-            "block_model": {
-                "Cube": {
-                    "material_index": 0,
-                    "pos_x": [1, 1],
-                    "neg_x": [1, 1],
-                    "pos_z": [1, 1],
-                    "neg_z": [1, 1],
-                    "pos_y": [0, 1],
-                    "neg_y": [2, 1]
-                }
-            }
-        },
-        "glass": {
-            "display_name": "Glass",
-            "collision_aabbs": [
-                [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]
-            ],
-            "is_transparent": true,
-            "block_model": {
-                "Cube": {
-                    "material_index": 1,
-                    "pos_x": [0, 4],
-                    "neg_x": [0, 4],
-                    "pos_z": [0, 4],
-                    "neg_z": [0, 4],
-                    "pos_y": [0, 4],
-                    "neg_y": [0, 4]
-                }
-            }
-        }
-    }
+	"materials": [
+		{
+			"path": "opa.mat.json",
+			"size": { "x": 20, "y": 10 }
+		},
+		{
+			"path": "transparent.mat.json",
+			"size": { "x": 20, "y": 10 }
+		}
+	],
+	"blocks": {
+		"empty_block": {
+			"display_name": "Empty Block",
+			"collision_aabbs": null,
+			"is_empty": true,
+			"block_model": {
+				"Cube": {
+					"material_index": 0,
+					"is_translucent": false,
+					"texture_coords": {
+						"pos_x": { "x": 0, "y": 0 },
+						"neg_x": { "x": 0, "y": 0 },
+						"pos_y": { "x": 0, "y": 0 },
+						"neg_y": { "x": 0, "y": 0 },
+						"pos_z": { "x": 0, "y": 0 },
+						"neg_z": { "x": 0, "y": 0 }
+					}
+				}
+			}
+		},
+		"opaque_block": {
+			"display_name": "Stone Block",
+			"collision_aabbs": null,
+			"is_empty": false,
+			"block_model": {
+				"Cube": {
+					"material_index": 0,
+					"is_translucent": false,
+					"texture_coords": {
+						"pos_x": { "x": 1, "y": 0 },
+						"neg_x": { "x": 1, "y": 0 },
+						"pos_y": { "x": 1, "y": 0 },
+						"neg_y": { "x": 1, "y": 0 },
+						"pos_z": { "x": 1, "y": 0 },
+						"neg_z": { "x": 1, "y": 0 }
+					}
+				}
+			}
+		},
+		"transparent_block": {
+			"display_name": "Glass Block",
+			"collision_aabbs": null,
+			"is_empty": false,
+			"block_model": {
+				"Cube": {
+					"material_index": 1,
+					"is_translucent": true,
+					"texture_coords": {
+						"pos_x": { "x": 2, "y": 0 },
+						"neg_x": { "x": 2, "y": 0 },
+						"pos_y": { "x": 2, "y": 0 },
+						"neg_y": { "x": 2, "y": 0 },
+						"pos_z": { "x": 2, "y": 0 },
+						"neg_z": { "x": 2, "y": 0 }
+					}
+				}
+			}
+		}
+	}
 }
