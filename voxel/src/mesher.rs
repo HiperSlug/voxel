@@ -13,6 +13,7 @@ use bevy::{
     asset::RenderAssetUsages,
     render::mesh::{Indices, PrimitiveTopology},
 };
+use bevy_materialize::prelude::GenericMaterial;
 use block_mesh::{GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG, SignedAxis, greedy_quads};
 
 pub fn handle_chunk_meshing(
@@ -23,16 +24,14 @@ pub fn handle_chunk_meshing(
     for (entity, chunk_data) in query {
         match &chunk_data.0 {
             Chunk::Uniform(_) => {
-                let mesh_entity = commands.spawn(ChunkMesh).id();
-                commands.entity(entity).add_child(mesh_entity);
+                commands.entity(entity).insert(ChunkMesh);
             }
             Chunk::Mixed(voxels) => {
                 let vox_guard = voxels.load();
                 let lib_guard = shared_block_lib.0.load();
-                let mesh_entity = commands.spawn(ChunkMesh).id();
-                commands.entity(entity).add_child(mesh_entity);
+                commands.entity(entity).insert(ChunkMesh);
                 commands
-                    .entity(mesh_entity)
+                    .entity(entity)
                     .insert(ChunkMesherTask::new(move || {
                         mesh(&**vox_guard, &**lib_guard)
                     }));
@@ -41,7 +40,7 @@ pub fn handle_chunk_meshing(
     }
 }
 
-pub fn mesh(voxels: &[Voxel], block_lib: &BlockLibrary) -> Vec<(Handle<StandardMaterial>, Mesh)> {
+pub fn mesh(voxels: &[Voxel], block_lib: &BlockLibrary) -> Vec<(Handle<GenericMaterial>, Mesh)> {
     // TODO: prealloc buffer b/c why not
     let mut buffer = GreedyQuadsBuffer::new(chunk::PADDED_VOLUME_IN_VOXELS);
     let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;

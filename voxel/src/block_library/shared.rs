@@ -45,7 +45,8 @@ pub struct SharedBlockLibraryPlugin(pub &'static str);
 
 impl Plugin for SharedBlockLibraryPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(BlockLibraryPath(self.0))
+        app.add_plugins(BlockLibraryPlugin)
+            .insert_resource(BlockLibraryPath(self.0))
             .init_resource::<SharedBlockLibrary>()
             .add_systems(Startup, load_block_library_handle)
             .add_systems(Update, update_shared_block_library);

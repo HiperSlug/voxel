@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::RenderPlugin};
 use bevy_flycam::{FlyCam, NoCameraPlayerPlugin};
 use voxel::{
     VoxelPlugin, VoxelViewer, VoxelVolume, block_library::shared::SharedBlockLibraryPlugin,
@@ -6,9 +6,9 @@ use voxel::{
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(RenderPlugin))
         .add_plugins(VoxelPlugin)
-        .add_plugins(SharedBlockLibraryPlugin("block_lib/blocks.bllib.json"))
+        .add_plugins(SharedBlockLibraryPlugin("blocks.bllib.json"))
         .add_plugins(NoCameraPlayerPlugin)
         .add_systems(Startup, testing)
         .add_systems(Update, moving)
@@ -24,7 +24,7 @@ pub fn testing(
         Camera3d::default(),
         Transform::default(),
         FlyCam,
-        VoxelViewer::new(32),
+        VoxelViewer::new(16),
     ));
 
     commands.spawn((
@@ -46,7 +46,7 @@ pub fn testing(
 }
 
 pub fn moving(query: Query<&mut Transform, With<VoxelVolume>>, time: Res<Time>) {
-    for mut t in query {
-        t.translation += Vec3::new(1.0, 0.0, 0.0) * time.delta_secs()
-    }
+    // for mut t in query {
+    //     t.translation += Vec3::new(1.0, 0.0, 0.0) * time.delta_secs()
+    // }
 }

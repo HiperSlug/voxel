@@ -1,0 +1,52 @@
+{
+	"materials": [
+		{
+			"path": "opaque.json",
+			"size": [20, 10]
+		},
+		{
+			"path": "transparent.json",
+			"size": [20, 10]
+		}
+	],
+	"blocks": {
+		"empty_block": {
+			"display_name": "Empty Block",
+			"collision_aabbs": null,
+			"is_empty": true,
+			"block_model": {
+				"Cube": {
+					"material_index": 0,
+					"is_translucent": false,
+					"texture_coords": {
+						"pos_x": [0, 0],
+						"neg_x": [0, 0],
+						"pos_y": [0, 0],
+						"neg_y": [0, 0],
+						"pos_z": [0, 0],
+						"neg_z": [0, 0]
+					}
+				}
+			}
+		},
+		"transparent_block": {
+			"display_name": "Glass Block",
+			"collision_aabbs": null,
+			"is_empty": false,
+			"block_model": {
+				"Cube": {
+					"material_index": 1,
+					"is_translucent": true,
+					"texture_coords": {
+						"pos_x": [4, 0],
+						"neg_x": [4, 0],
+						"pos_y": [4, 0],
+						"neg_y": [4, 0],
+						"pos_z": [4, 0],
+						"neg_z": [4, 0]
+					}
+				}
+			}
+		}
+	}
+}

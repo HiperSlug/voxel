@@ -5,6 +5,8 @@ mod raw;
 /// Workaround until bevy allows resources to be threaded.
 pub mod shared;
 
+mod v2;
+
 // these structs do not have any external dependencies
 pub use raw::{BlockModel, BlockModelCube, BlockVariant, TextureCoords};
 
@@ -14,7 +16,10 @@ use bevy::{
     reflect::TypePath,
     tasks::ConditionalSendFuture,
 };
-use bevy_materialize::{MaterializePlugin, prelude::JsonMaterialDeserializer};
+use bevy_materialize::{
+    MaterializePlugin,
+    prelude::{GenericMaterial, JsonMaterialDeserializer},
+};
 use block_mesh::{MergeVoxelContext, VoxelContext, VoxelVisibility};
 use std::{
     collections::HashMap,
@@ -25,7 +30,7 @@ use crate::data::voxel::Voxel;
 
 #[derive(Debug, Clone)]
 pub struct Material {
-    pub handle: Handle<StandardMaterial>,
+    pub handle: Handle<GenericMaterial>,
     pub size: UVec2,
 }
 
@@ -110,7 +115,9 @@ impl AssetLoader for BlockLibraryLoader {
                 .map(|m| {
                     let raw::Material { path, size } = m;
 
-                    let handle = load_context.load(resolve_path(load_context, &path));
+                    let path = resolve_path(load_context, &path);
+                    println!("{path:?}");
+                    let handle = load_context.loader().with_static_type().load(path);
 
                     Material { handle, size }
                 })
