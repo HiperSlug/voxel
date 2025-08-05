@@ -4,8 +4,11 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{
     AsBindGroup, Extent3d, ShaderRef, TextureDimension, TextureFormat,
 };
+use std::path::PathBuf;
 
-const SHADER_PATH: &str = "shaders/texture_array.wgsl";
+use crate::asset::{collect_paths, load_folders, poll_folders, AssetLoadState, VecFolder, VecPath};
+
+const SHADER_PATH: &str = "shaders/chunk.wgsl";
 
 #[derive(Debug, Clone, AsBindGroup, Asset, TypePath)]
 struct TextureArrayMaterialExt {
@@ -28,12 +31,52 @@ impl MaterialExtension for TextureArrayMaterialExt {
 
 pub type TextureArrayMaterial = ExtendedMaterial<StandardMaterial, TextureArrayMaterialExt>;
 
-// TODO: MOVE TO BLOCK LIB
-#[derive(Debug, Resource, Deref)]
+#[derive(Debug, Resource)]
 pub struct SharedTextureArrayMaterial(pub Handle<TextureArrayMaterial>);
 
-#[derive(Debug, Resource)]
-pub struct TextureFolders(pub Vec<Handle<LoadedFolder>>);
+#[derive(Debug, Resource, Deref, DerefMut)]
+struct TexturesFolderPaths(Vec<PathBuf>);
+
+impl VecPath for TexturesFolderPaths {
+    fn from_paths(paths: &[PathBuf]) -> Self {
+        Self(paths.to_vec())
+    }
+
+    fn paths(&self) -> &[PathBuf] {
+        &self.0
+    }
+
+    fn target() -> &'static str {
+        "textures"
+    }
+}
+
+#[derive(Debug, Resource, Deref, DerefMut)]
+struct TextureFolders(Vec<Handle<LoadedFolder>>);
+
+impl VecFolder for TextureFolders {
+    fn folders(&self) -> &[Handle<LoadedFolder>] {
+        &self.0
+    }
+
+    fn from_folders(folders: &[Handle<LoadedFolder>]) -> Self {
+        Self(folders.to_vec())
+    }
+}
+
+#[derive(Debug, Default, States, Hash, PartialEq, Eq, Clone, Copy)]
+enum TextureArrayState {
+    #[default]
+    Loading,
+    Building,
+    Loaded,
+}
+
+impl AssetLoadState for TextureArrayState {
+    fn build_state() -> Self {
+        Self::Building
+    }
+}
 
 fn build_texture_array(
     mut commands: Commands,
@@ -43,7 +86,6 @@ fn build_texture_array(
     mut materials: ResMut<Assets<TextureArrayMaterial>>,
 ) {
     let textures = folders
-        .0
         .iter()
         .map(|h| loaded_folders.get(h).unwrap())
         .flat_map(|f| {
@@ -79,14 +121,36 @@ fn build_texture_array(
         RenderAssetUsages::default(),
     );
 
-    let handle = images.add(texture_array);
+    let textures = images.add(texture_array);
     let handle = materials.add(ExtendedMaterial {
         base: StandardMaterial {
             alpha_mode: AlphaMode::Blend,
             ..Default::default()
         },
-        extension: TextureArrayMaterialExt { textures: handle },
+        extension: TextureArrayMaterialExt { textures },
     });
 
     commands.insert_resource(SharedTextureArrayMaterial(handle));
+}
+
+pub struct TextureArrayPlugin;
+
+impl Plugin for TextureArrayPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_state::<TextureArrayState>()
+            .add_systems(
+                OnEnter(TextureArrayState::Loading),
+                (
+                    collect_paths::<TexturesFolderPaths>,
+                    load_folders::<TexturesFolderPaths, TextureFolders>,
+                )
+                    .chain(),
+            )
+            .add_systems(
+                Update,
+                (poll_folders::<TextureFolders, TextureArrayState>)
+                    .run_if(in_state(TextureArrayState::Loading)),
+            )
+            .add_systems(OnEnter(TextureArrayState::Building), build_texture_array);
+    }
 }

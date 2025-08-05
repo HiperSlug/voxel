@@ -1,47 +1,20 @@
-mod raw {
-    use bevy::{
-        asset::{AssetLoader, LoadContext, io::Reader},
-        math::bounding::Aabb3d,
-        prelude::*,
-        tasks::ConditionalSendFuture,
-    };
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Debug, Serialize, Deserialize, Asset, TypePath)]
-    pub struct Block {
-        pub display_name: String,
-        pub collision_aabbs: Vec<Aabb3d>,
-        pub is_translucent: bool,
-        pub textures: Textures,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct Textures {
-        pub pos_x: String,
-        pub neg_x: String,
-        pub pos_y: String,
-        pub neg_y: String,
-        pub pos_z: String,
-        pub neg_z: String,
-    }
-}
-
 use bevy::{
-    asset::{Asset, AssetLoader, LoadContext, io::Reader},
+    asset::{AssetLoader, LoadContext, LoadedFolder, io::Reader, prelude::*},
     math::bounding::Aabb3d,
     prelude::*,
-    reflect::TypePath,
     tasks::ConditionalSendFuture,
 };
 use block_mesh::{MergeVoxelContext, VoxelContext, VoxelVisibility};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::{path::PathBuf, sync::Arc};
+
+use crate::{
+    asset::{AssetLoadState, VecFolder, VecPath, collect_paths, load_folders, poll_folders},
+    data::voxel::Voxel,
 };
 
-use crate::data::voxel::Voxel;
-
-#[derive(Debug, Asset, TypePath)]
+#[derive(Debug, Serialize, Deserialize, Asset, TypePath)]
 pub struct Block {
     pub display_name: String,
     pub collision_aabbs: Vec<Aabb3d>,
@@ -49,18 +22,14 @@ pub struct Block {
     pub textures: Textures,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Textures {
-    pub pos_x: usize,
-    pub neg_x: usize,
-    pub pos_y: usize,
-    pub neg_y: usize,
-    pub pos_z: usize,
-    pub neg_z: usize,
-}
-
-struct BlockLoaderSettings {
-    index_offset: usize,
+    pub pos_x: String,
+    pub neg_x: String,
+    pub pos_y: String,
+    pub neg_y: String,
+    pub pos_z: String,
+    pub neg_z: String,
 }
 
 #[derive(Debug, Default)]
@@ -68,7 +37,7 @@ pub struct BlockLoader;
 
 impl AssetLoader for BlockLoader {
     type Asset = Block;
-    type Settings = BlockLoaderSettings;
+    type Settings = ();
     type Error = anyhow::Error;
 
     fn extensions(&self) -> &[&str] {
@@ -78,81 +47,86 @@ impl AssetLoader for BlockLoader {
     fn load(
         &self,
         reader: &mut dyn Reader,
-        settings: &Self::Settings,
-        context: &mut LoadContext,
+        _: &Self::Settings,
+        _: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async move {
             let mut buffer = Vec::new();
             reader.read_to_end(&mut buffer).await?;
 
-            let raw::Block {
-                display_name,
-                collision_aabbs,
-                is_translucent,
-                textures,
-            } = serde_json::de::from_slice::<raw::Block>(&buffer)?;
-
-            let raw::Textures {
-                pos_x,
-                neg_x,
-                pos_y,
-                neg_y,
-                pos_z,
-                neg_z,
-            } = textures;
-
-            let textures = Textures {
-                pos_x: context.load(pos_x),
-            }
-
-            Ok(())
+            let out = serde_json::de::from_slice::<Block>(&buffer)?;
+            Ok(out)
         }
     }
 }
 
-#[derive(Debug)]
-pub struct BlockLibrary {
-    pub blocks: Vec<Block>,
+#[derive(Debug, Resource, Deref, DerefMut)]
+struct BlocksFolderPaths(Vec<PathBuf>);
 
-    pub material: Handle<TextureArrayMaterial>,
+impl VecPath for BlocksFolderPaths {
+    fn from_paths(paths: &[PathBuf]) -> Self {
+        Self(paths.to_vec())
+    }
+
+    fn paths(&self) -> &[PathBuf] {
+        &self.0
+    }
+
+    fn target() -> &'static str {
+        "blocks"
+    }
+}
+
+#[derive(Debug, Resource, Deref, DerefMut)]
+struct BlocksFolders(Vec<Handle<LoadedFolder>>);
+
+impl VecFolder for BlocksFolders {
+    fn folders(&self) -> &[Handle<LoadedFolder>] {
+        &self.0
+    }
+
+    fn from_folders(folders: &[Handle<LoadedFolder>]) -> Self {
+        Self(folders.to_vec())
+    }
+}
+
+#[derive(Debug, Resource)]
+pub struct BlockLibrary {
+    pub blocks: Vec<Handle<Block>>,
 
     pub name_to_index: HashMap<String, usize>,
     pub index_to_name: Vec<String>,
 }
 
 impl BlockLibrary {
-    #[inline]
-    pub fn index_from(&self, name: &str) -> Option<&usize> {
-        self.name_to_index.get(name)
-    }
-
-    #[inline]
-    pub fn name_from(&self, index: usize) -> Option<&String> {
-        self.index_to_name.get(index)
+    pub fn arc_vec(&self, assets: Res<Assets<Block>>) -> ThreadSafeBlockVec {
+        self.blocks
+            .iter()
+            .map(|b| assets.get_arc(b).unwrap())
+            .collect()
     }
 }
 
-impl VoxelContext<Voxel> for BlockLibrary {
+pub type ThreadSafeBlockVec = Vec<Arc<Block>>;
+
+impl VoxelContext<Voxel> for ThreadSafeBlockVec {
     fn get_visibility(&self, voxel: &Voxel) -> VoxelVisibility {
         if voxel.is_sentinel() {
             VoxelVisibility::Empty
-        } else if let Some(block) = self.blocks.get(voxel.index()) {
+        } else if let Some(block) = self.get(voxel.index()) {
             if block.is_translucent {
                 VoxelVisibility::Translucent
             } else {
                 VoxelVisibility::Opaque
             }
         } else {
-            error!(
-                "Could not find voxel {:?} in block_library {:?}",
-                voxel, self,
-            );
+            error!("Could not find voxel {:?} in blocks {:?}", voxel, self,);
             VoxelVisibility::Empty
         }
     }
 }
 
-impl MergeVoxelContext<Voxel> for BlockLibrary {
+impl MergeVoxelContext<Voxel> for ThreadSafeBlockVec {
     type MergeValue = u16;
     type MergeValueFacingNeighbour = u16;
 
@@ -165,11 +139,67 @@ impl MergeVoxelContext<Voxel> for BlockLibrary {
     }
 }
 
-fn resolve_path(load_context: &LoadContext, path: &str) -> PathBuf {
-    if path.starts_with("/") {
-        PathBuf::from(path.trim_start_matches('/'))
-    } else {
-        PathBuf::from(load_context.path().parent().unwrap_or(Path::new(""))).join(path)
+pub fn build_block_library(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    assets: Res<Assets<LoadedFolder>>,
+    folders: Res<BlocksFolders>,
+    mut state: ResMut<NextState<BlockLibraryState>>,
+) {
+    let mut name_to_index = HashMap::new();
+    let mut index_to_name = Vec::new();
+    let mut blocks = Vec::new();
+
+    for untyped in folders
+        .iter()
+        .map(|f| assets.get(f.id()).unwrap())
+        .flat_map(|f| f.handles.iter())
+        .cloned()
+    {
+        let Some(name) = asset_server.get_path(untyped.id()).and_then(|p| {
+            p.path()
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+        }) else {
+            warn!("Unable to resolve block `name` for handle {untyped:?}. Skipping...");
+            continue;
+        };
+
+        let block = match untyped.try_typed::<Block>() {
+            Ok(b) => b,
+            Err(e) => {
+                warn!("Handle {name} cannot be converted to `Block` type: {e}. Skipping...");
+                continue;
+            }
+        };
+
+        index_to_name.push(name.clone());
+        name_to_index.insert(name, blocks.len());
+
+        blocks.push(block);
+    }
+
+    commands.remove_resource::<BlocksFolders>();
+    commands.insert_resource(BlockLibrary {
+        blocks,
+        name_to_index,
+        index_to_name,
+    });
+
+    state.set(BlockLibraryState::Loaded);
+}
+
+#[derive(Debug, States, Hash, PartialEq, Eq, Clone, Copy, Default)]
+pub enum BlockLibraryState {
+    #[default]
+    Loading,
+    Building,
+    Loaded,
+}
+
+impl AssetLoadState for BlockLibraryState {
+    fn build_state() -> Self {
+        Self::Building
     }
 }
 
@@ -177,8 +207,22 @@ pub struct BlockLibraryPlugin;
 
 impl Plugin for BlockLibraryPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(MaterializePlugin::new(JsonMaterialDeserializer))
-            .init_asset::<BlockLibrary>()
-            .init_asset_loader::<BlockLibraryLoader>();
+        app.init_state::<BlockLibraryState>()
+            .init_asset::<Block>()
+            .init_asset_loader::<BlockLoader>()
+            .add_systems(
+                OnEnter(BlockLibraryState::Loading),
+                (
+                    collect_paths::<BlocksFolderPaths>,
+                    load_folders::<BlocksFolderPaths, BlocksFolders>,
+                )
+                    .chain(),
+            )
+            .add_systems(
+                Update,
+                (poll_folders::<BlocksFolders, BlockLibraryState>)
+                    .run_if(in_state(BlockLibraryState::Loading)),
+            )
+            .add_systems(OnEnter(BlockLibraryState::Building), build_block_library);
     }
 }
