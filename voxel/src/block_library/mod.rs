@@ -1,24 +1,37 @@
-/// Deserializable versions
-///
-/// Only difference is that they store a `path: String` to any dependencies
-mod raw;
-/// Workaround until bevy allows resources to be threaded.
-pub mod shared;
+mod raw {
+    use bevy::{
+        asset::{AssetLoader, LoadContext, io::Reader},
+        math::bounding::Aabb3d,
+        prelude::*,
+        tasks::ConditionalSendFuture,
+    };
+    use serde::{Deserialize, Serialize};
 
-mod v2;
+    #[derive(Debug, Serialize, Deserialize, Asset, TypePath)]
+    pub struct Block {
+        pub display_name: String,
+        pub collision_aabbs: Vec<Aabb3d>,
+        pub is_translucent: bool,
+        pub textures: Textures,
+    }
 
-// these structs do not have any external dependencies
-pub use raw::{BlockModel, BlockModelCube, BlockVariant, TextureCoords};
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct Textures {
+        pub pos_x: String,
+        pub neg_x: String,
+        pub pos_y: String,
+        pub neg_y: String,
+        pub pos_z: String,
+        pub neg_z: String,
+    }
+}
 
 use bevy::{
     asset::{Asset, AssetLoader, LoadContext, io::Reader},
+    math::bounding::Aabb3d,
     prelude::*,
     reflect::TypePath,
     tasks::ConditionalSendFuture,
-};
-use bevy_materialize::{
-    MaterializePlugin,
-    prelude::{GenericMaterial, JsonMaterialDeserializer},
 };
 use block_mesh::{MergeVoxelContext, VoxelContext, VoxelVisibility};
 use std::{
@@ -28,41 +41,111 @@ use std::{
 
 use crate::data::voxel::Voxel;
 
-#[derive(Debug, Clone)]
-pub struct Material {
-    pub handle: Handle<GenericMaterial>,
-    pub size: UVec2,
+#[derive(Debug, Asset, TypePath)]
+pub struct Block {
+    pub display_name: String,
+    pub collision_aabbs: Vec<Aabb3d>,
+    pub is_translucent: bool,
+    pub textures: Textures,
 }
 
-// Clone and default are req for `shared` module
-#[derive(Debug, Asset, TypePath, Clone, Default)]
+#[derive(Debug)]
+pub struct Textures {
+    pub pos_x: usize,
+    pub neg_x: usize,
+    pub pos_y: usize,
+    pub neg_y: usize,
+    pub pos_z: usize,
+    pub neg_z: usize,
+}
+
+struct BlockLoaderSettings {
+    index_offset: usize,
+}
+
+#[derive(Debug, Default)]
+pub struct BlockLoader;
+
+impl AssetLoader for BlockLoader {
+    type Asset = Block;
+    type Settings = BlockLoaderSettings;
+    type Error = anyhow::Error;
+
+    fn extensions(&self) -> &[&str] {
+        &["json"]
+    }
+
+    fn load(
+        &self,
+        reader: &mut dyn Reader,
+        settings: &Self::Settings,
+        context: &mut LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        async move {
+            let mut buffer = Vec::new();
+            reader.read_to_end(&mut buffer).await?;
+
+            let raw::Block {
+                display_name,
+                collision_aabbs,
+                is_translucent,
+                textures,
+            } = serde_json::de::from_slice::<raw::Block>(&buffer)?;
+
+            let raw::Textures {
+                pos_x,
+                neg_x,
+                pos_y,
+                neg_y,
+                pos_z,
+                neg_z,
+            } = textures;
+
+            let textures = Textures {
+                pos_x: context.load(pos_x),
+            }
+
+            Ok(())
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct BlockLibrary {
-    pub materials: Vec<Material>,
-    pub variants: Vec<BlockVariant>,
+    pub blocks: Vec<Block>,
+
+    pub material: Handle<TextureArrayMaterial>,
 
     pub name_to_index: HashMap<String, usize>,
     pub index_to_name: Vec<String>,
 }
 
+impl BlockLibrary {
+    #[inline]
+    pub fn index_from(&self, name: &str) -> Option<&usize> {
+        self.name_to_index.get(name)
+    }
+
+    #[inline]
+    pub fn name_from(&self, index: usize) -> Option<&String> {
+        self.index_to_name.get(index)
+    }
+}
+
 impl VoxelContext<Voxel> for BlockLibrary {
     fn get_visibility(&self, voxel: &Voxel) -> VoxelVisibility {
-        if let Some(variant) = self.variants.get(voxel.0 as usize) {
-            if variant.is_empty.unwrap_or(false) {
-                return VoxelVisibility::Empty;
-            }
-            match &variant.block_model {
-                BlockModel::Cube(c) => {
-                    if c.is_translucent {
-                        VoxelVisibility::Translucent
-                    } else {
-                        VoxelVisibility::Opaque
-                    }
-                }
+        if voxel.is_sentinel() {
+            VoxelVisibility::Empty
+        } else if let Some(block) = self.blocks.get(voxel.index()) {
+            if block.is_translucent {
+                VoxelVisibility::Translucent
+            } else {
+                VoxelVisibility::Opaque
             }
         } else {
             error!(
                 "Could not find voxel {:?} in block_library {:?}",
-                voxel, self
+                voxel, self,
             );
             VoxelVisibility::Empty
         }
@@ -74,78 +157,11 @@ impl MergeVoxelContext<Voxel> for BlockLibrary {
     type MergeValueFacingNeighbour = u16;
 
     fn merge_value(&self, voxel: &Voxel) -> Self::MergeValue {
-        voxel.0
+        voxel.id
     }
 
     fn merge_value_facing_neighbour(&self, voxel: &Voxel) -> Self::MergeValueFacingNeighbour {
-        voxel.0
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct BlockLibraryLoader;
-
-impl AssetLoader for BlockLibraryLoader {
-    // TODO: Wait for bevy to allow async assets
-    type Asset = BlockLibrary;
-    type Settings = ();
-    type Error = anyhow::Error;
-
-    fn extensions(&self) -> &[&str] {
-        &["json", "bllib", "bllib.json", "blocklib", "blocklib.json"]
-    }
-
-    fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _: &Self::Settings,
-        load_context: &mut LoadContext,
-    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-        async move {
-            let mut bytes = Vec::new();
-            reader.read_to_end(&mut bytes).await?;
-
-            let raw::BlockLibrary {
-                materials: raw_materials,
-                blocks: raw_blocks,
-            } = serde_json::de::from_slice::<raw::BlockLibrary>(&bytes)?;
-
-            let materials = raw_materials
-                .into_iter()
-                .map(|m| {
-                    let raw::Material { path, size } = m;
-
-                    let path = resolve_path(load_context, &path);
-                    println!("{path:?}");
-                    let handle = load_context.loader().with_static_type().load(path);
-
-                    Material { handle, size }
-                })
-                .collect::<Vec<_>>();
-
-            let capacity = raw_blocks.len();
-
-            let mut variants = Vec::with_capacity(capacity);
-
-            let mut name_to_index = HashMap::new();
-            let mut index_to_name = Vec::with_capacity(capacity);
-
-            for (i, (name, variant)) in raw_blocks.into_iter().enumerate() {
-                variants.push(variant);
-
-                name_to_index.insert(name.clone(), i);
-                index_to_name.push(name);
-            }
-
-            let lib = BlockLibrary {
-                materials,
-                variants,
-                name_to_index,
-                index_to_name,
-            };
-
-            Ok(lib)
-        }
+        voxel.id
     }
 }
 

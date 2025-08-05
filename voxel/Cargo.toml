@@ -7,6 +7,7 @@ edition = "2024"
 anyhow = "1.0.98"
 arc-swap = "1.7.1"
 bevy = { workspace = true }
+bevy_asset_loader = "0.23.0"
 bevy_materialize = { version = "0.7.1", features = ["json"] }
 block-mesh = { git = "https://github.com/HiperSlug/block-mesh-rs"}
 fastnoise-lite = "1.1.1"

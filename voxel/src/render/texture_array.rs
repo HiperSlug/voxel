@@ -28,6 +28,7 @@ impl MaterialExtension for TextureArrayMaterialExt {
 
 pub type TextureArrayMaterial = ExtendedMaterial<StandardMaterial, TextureArrayMaterialExt>;
 
+// TODO: MOVE TO BLOCK LIB
 #[derive(Debug, Resource, Deref)]
 pub struct SharedTextureArrayMaterial(pub Handle<TextureArrayMaterial>);
 
