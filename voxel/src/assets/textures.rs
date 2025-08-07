@@ -4,9 +4,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{
     AsBindGroup, Extent3d, ShaderRef, TextureDimension, TextureFormat,
 };
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
+use super::load_folders::{Loaded, WalkSettings, init_load_folders, poll_folders};
 
 const SHADER_PATH: &str = "shaders/chunk.wgsl";
 
@@ -39,61 +39,36 @@ pub type TextureMap = HashMap<String, u16>;
 #[derive(Debug, Resource, Deref, DerefMut)]
 pub struct SharedTextureMap(pub Arc<TextureMap>);
 
-#[derive(Debug, Resource, Deref, DerefMut)]
-struct TexturesFolderPaths(Vec<PathBuf>);
-
-impl VecPath for TexturesFolderPaths {
-    fn from_paths(paths: &[PathBuf]) -> Self {
-        Self(paths.to_vec())
-    }
-
-    fn paths(&self) -> &[PathBuf] {
-        &self.0
-    }
-
-    fn target() -> &'static str {
-        "textures"
-    }
-}
-
-#[derive(Debug, Resource, Deref, DerefMut)]
-struct TextureFolders(Vec<Handle<LoadedFolder>>);
-
-impl VecFolder for TextureFolders {
-    fn folders(&self) -> &[Handle<LoadedFolder>] {
-        &self.0
-    }
-
-    fn from_folders(folders: &[Handle<LoadedFolder>]) -> Self {
-        Self(folders.to_vec())
-    }
-}
-
-#[derive(Debug, Default, States, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, States, Hash, PartialEq, Eq, Clone, Copy)]
 enum TextureArrayState {
-    #[default]
     Loading,
-    Building,
     Loaded,
 }
 
-impl AssetLoadState for TextureArrayState {
-    fn build_state() -> Self {
-        Self::Building
-    }
+struct TextureWalkSettings;
+
+impl WalkSettings for TextureWalkSettings {
+    const MAX: usize = 2;
+    const MIN: usize = 2;
+    const ROOT: &str = "block_libs";
+    const TARGET: &str = "textures";
 }
 
 fn build_texture_array(
     mut commands: Commands,
-    folders: Res<TextureFolders>,
-    loaded_folders: Res<Assets<LoadedFolder>>,
-    mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<TextureArrayMaterial>>,
     asset_server: Res<AssetServer>,
+    mut events: EventReader<Loaded<TextureWalkSettings>>,
+    assets_f: Res<Assets<LoadedFolder>>,
+    mut assets_i: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<TextureArrayMaterial>>,
 ) {
+    let Some(folders) = events.read().next() else {
+        return;
+    };
+
     let texture_iter = folders
         .iter()
-        .map(|h| loaded_folders.get(h).unwrap())
+        .map(|h| assets_f.get(h).unwrap())
         .flat_map(|f| {
             f.handles.iter().cloned().filter_map(|i| {
                 i.try_typed::<Image>()
@@ -107,7 +82,7 @@ fn build_texture_array(
     let mut map = HashMap::new();
 
     for (idx, handle) in texture_iter.enumerate() {
-        let image = images.get(handle.id()).unwrap();
+        let image = assets_i.get(handle.id()).unwrap();
         textures.push(image);
 
         let name = asset_server
@@ -145,7 +120,7 @@ fn build_texture_array(
         RenderAssetUsages::default(),
     );
 
-    let textures = images.add(texture_array);
+    let textures = assets_i.add(texture_array);
     let handle = materials.add(ExtendedMaterial {
         base: StandardMaterial {
             alpha_mode: AlphaMode::Blend,
@@ -162,20 +137,16 @@ pub struct TextureArrayPlugin;
 
 impl Plugin for TextureArrayPlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<TextureArrayState>()
+        app.insert_state(TextureArrayState::Loading)
             .add_systems(
                 OnEnter(TextureArrayState::Loading),
-                (
-                    collect_paths::<TexturesFolderPaths>,
-                    load_folders::<TexturesFolderPaths, TextureFolders>,
-                )
-                    .chain(),
+                init_load_folders::<TextureWalkSettings>,
             )
             .add_systems(
                 Update,
-                (poll_folders::<TextureFolders, TextureArrayState>)
+                (poll_folders::<TextureWalkSettings>, build_texture_array)
+                    .chain()
                     .run_if(in_state(TextureArrayState::Loading)),
-            )
-            .add_systems(OnEnter(TextureArrayState::Building), build_texture_array);
+            );
     }
 }

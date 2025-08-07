@@ -4,9 +4,11 @@ use bevy::{
 };
 use std::{collections::HashMap, sync::Arc};
 
+use crate::assets::load_folders::Loaded;
+
 use super::{
     block::{Block, BlockLoader},
-    walking::{WalkSettings, init_load_folders, poll_folders},
+    load_folders::{WalkSettings, init_load_folders, poll_folders},
 };
 
 struct BlocksWalkSettings;
@@ -16,15 +18,6 @@ impl WalkSettings for BlocksWalkSettings {
     const MIN: usize = 2;
     const ROOT: &str = "block_lib";
     const TARGET: &str = "blocks";
-}
-
-#[derive(Debug, Event, Deref, DerefMut)]
-struct LoadedEvent(Vec<Handle<LoadedFolder>>);
-
-impl From<Vec<Handle<LoadedFolder>>> for LoadedEvent {
-    fn from(value: Vec<Handle<LoadedFolder>>) -> Self {
-        Self(value)
-    }
 }
 
 #[derive(Debug, States, Hash, PartialEq, Eq, Clone, Copy)]
@@ -48,7 +41,7 @@ pub fn build_block_library(
     asset_server: Res<AssetServer>,
     assets_f: Res<Assets<LoadedFolder>>,
     assets_b: Res<Assets<Block>>,
-    mut events: EventReader<LoadedEvent>,
+    mut events: EventReader<Loaded<BlocksWalkSettings>>,
     mut state: ResMut<NextState<BlockLibraryState>>,
 ) {
     let Some(event) = events.read().next() else {
@@ -60,7 +53,7 @@ pub fn build_block_library(
     let mut blocks = Vec::new();
 
     for untyped in event
-        .into_iter()
+        .iter()
         .map(|f| assets_f.get(f.id()).unwrap())
         .flat_map(|f| f.handles.iter())
         .cloned()
@@ -103,7 +96,7 @@ pub struct BlockLibraryPlugin;
 
 impl Plugin for BlockLibraryPlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<BlockLibraryState>()
+        app.insert_state(BlockLibraryState::Loading)
             .init_asset::<Block>()
             .init_asset_loader::<BlockLoader>()
             .add_systems(
@@ -112,10 +105,7 @@ impl Plugin for BlockLibraryPlugin {
             )
             .add_systems(
                 Update,
-                (
-                    poll_folders::<LoadedEvent, BlocksWalkSettings>,
-                    build_block_library,
-                )
+                (poll_folders::<BlocksWalkSettings>, build_block_library)
                     .chain()
                     .run_if(in_state(BlockLibraryState::Loading)),
             );
