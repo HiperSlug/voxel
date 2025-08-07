@@ -1,7 +1,6 @@
 use crate::data::chunk::Chunk;
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, poll_once};
-use bevy_materialize::prelude::{GenericMaterial, GenericMaterial3d};
 
 #[derive(Debug, Component)]
 pub struct ChunkFlag;

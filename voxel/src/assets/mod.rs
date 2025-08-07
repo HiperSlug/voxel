@@ -1,4 +1,4 @@
 mod block;
-mod block_library;
+pub mod block_library;
 mod load_folders;
-mod textures;
+pub mod textures;

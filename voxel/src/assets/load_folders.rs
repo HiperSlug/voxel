@@ -17,7 +17,7 @@ pub trait WalkSettings {
 }
 
 #[derive(Debug, Resource)]
-struct FoldersHandles<S>
+pub struct FoldersHandles<S>
 where
     S: WalkSettings,
 {

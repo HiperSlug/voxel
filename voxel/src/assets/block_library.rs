@@ -11,7 +11,7 @@ use super::{
     load_folders::{WalkSettings, init_load_folders, poll_folders},
 };
 
-struct BlocksWalkSettings;
+pub struct BlocksWalkSettings;
 
 impl WalkSettings for BlocksWalkSettings {
     const MAX: usize = 2;

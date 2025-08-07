@@ -11,7 +11,7 @@ use super::load_folders::{Loaded, WalkSettings, init_load_folders, poll_folders}
 const SHADER_PATH: &str = "shaders/chunk.wgsl";
 
 #[derive(Debug, Clone, AsBindGroup, Asset, TypePath)]
-struct TextureArrayMaterialExt {
+pub struct TextureArrayMaterialExt {
     #[texture(100, dimension = "2d_array")]
     #[sampler(101)]
     textures: Handle<Image>,
@@ -31,7 +31,7 @@ impl MaterialExtension for TextureArrayMaterialExt {
 
 pub type TextureArrayMaterial = ExtendedMaterial<StandardMaterial, TextureArrayMaterialExt>;
 
-#[derive(Debug, Resource)]
+#[derive(Debug, Resource, Deref)]
 pub struct SharedTextureArrayMaterial(pub Handle<TextureArrayMaterial>);
 
 pub type TextureMap = HashMap<String, u16>;
@@ -61,6 +61,7 @@ fn build_texture_array(
     assets_f: Res<Assets<LoadedFolder>>,
     mut assets_i: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<TextureArrayMaterial>>,
+    mut state: ResMut<NextState<TextureArrayState>>,
 ) {
     let Some(folders) = events.read().next() else {
         return;
@@ -128,6 +129,8 @@ fn build_texture_array(
         },
         extension: TextureArrayMaterialExt { textures },
     });
+
+    state.set(TextureArrayState::Loaded);
 
     commands.insert_resource(SharedTextureArrayMaterial(handle));
     commands.insert_resource(SharedTextureMap(Arc::new(map)));
