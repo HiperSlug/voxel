@@ -5,7 +5,7 @@ use crate::data::{
 use arc_swap::ArcSwap;
 use bevy::math::{I64Vec3, IVec3};
 use fastnoise_lite::{self, FastNoiseLite};
-use std::{array, sync::Arc};
+use std::{array, sync::Arc, u16};
 
 pub fn chunk_pos_to_voxel_pos(chunk_pos: IVec3) -> I64Vec3 {
     chunk_pos.as_i64vec3() * chunk::LENGTH_IN_VOXELS as i64
@@ -22,9 +22,9 @@ pub fn temp(chunk_pos: IVec3) -> Chunk {
         let y_cutoff =
             (NOISE.get_noise_2d(global_position.x as f32, global_position.z as f32) * 100.0) as i64;
         if global_position.y > y_cutoff {
-            Voxel(0)
+            Voxel { id: u16::MAX }
         } else {
-            Voxel(1)
+            Voxel { id: 0 }
         }
     }))));
     c.attempt_collapse();

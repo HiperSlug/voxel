@@ -4,9 +4,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{
     AsBindGroup, Extent3d, ShaderRef, TextureDimension, TextureFormat,
 };
+use std::collections::HashMap;
 use std::path::PathBuf;
-
-use crate::asset::{collect_paths, load_folders, poll_folders, AssetLoadState, VecFolder, VecPath};
+use std::sync::Arc;
 
 const SHADER_PATH: &str = "shaders/chunk.wgsl";
 
@@ -33,6 +33,11 @@ pub type TextureArrayMaterial = ExtendedMaterial<StandardMaterial, TextureArrayM
 
 #[derive(Debug, Resource)]
 pub struct SharedTextureArrayMaterial(pub Handle<TextureArrayMaterial>);
+
+pub type TextureMap = HashMap<String, u16>;
+
+#[derive(Debug, Resource, Deref, DerefMut)]
+pub struct SharedTextureMap(pub Arc<TextureMap>);
 
 #[derive(Debug, Resource, Deref, DerefMut)]
 struct TexturesFolderPaths(Vec<PathBuf>);
@@ -84,8 +89,9 @@ fn build_texture_array(
     loaded_folders: Res<Assets<LoadedFolder>>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<TextureArrayMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    let textures = folders
+    let texture_iter = folders
         .iter()
         .map(|h| loaded_folders.get(h).unwrap())
         .flat_map(|f| {
@@ -94,9 +100,27 @@ fn build_texture_array(
                     .inspect_err(|e| warn!("Error loading texture {e}"))
                     .ok()
             })
-        })
-        .map(|h| images.get(h.id()).unwrap())
-        .collect::<Vec<_>>();
+        });
+
+    let mut textures = Vec::new();
+
+    let mut map = HashMap::new();
+
+    for (idx, handle) in texture_iter.enumerate() {
+        let image = images.get(handle.id()).unwrap();
+        textures.push(image);
+
+        let name = asset_server
+            .get_path(handle.id())
+            .unwrap()
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+
+        map.insert(name, idx as u16);
+    }
 
     let length = textures.len() as u32;
     let size = textures.get(0).unwrap_or(&&Image::default()).size();
@@ -131,6 +155,7 @@ fn build_texture_array(
     });
 
     commands.insert_resource(SharedTextureArrayMaterial(handle));
+    commands.insert_resource(SharedTextureMap(Arc::new(map)));
 }
 
 pub struct TextureArrayPlugin;

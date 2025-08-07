@@ -2,8 +2,6 @@ mod data;
 
 mod chunk;
 
-mod mesher;
-
 mod plugin;
 
 mod generator;
@@ -14,8 +12,6 @@ pub use plugin::VoxelPlugin;
 
 pub use voxel_volume::{VoxelViewer, VoxelVolume};
 
-pub mod block_library;
-
 mod render;
 
-mod asset;
+mod assets;
