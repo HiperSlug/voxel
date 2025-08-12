@@ -15,3 +15,5 @@ pub use voxel_volume::{VoxelViewer, VoxelVolume};
 mod render;
 
 mod assets;
+
+mod math;

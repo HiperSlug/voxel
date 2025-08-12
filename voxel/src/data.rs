@@ -1,7 +1,9 @@
 pub mod voxel {
+    use bevy::prelude::{Deref, DerefMut};
+
     pub const LENGTH: f32 = 0.5;
 
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, PartialOrd, Ord)]
     pub struct Voxel {
         pub id: u16,
     }
