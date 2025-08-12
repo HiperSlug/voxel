@@ -1,6 +1,5 @@
-mod data;
-
-mod chunk;
+pub mod voxel;
+pub mod chunk;
 
 mod plugin;
 

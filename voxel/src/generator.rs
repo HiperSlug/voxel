@@ -1,14 +1,15 @@
-use crate::data::{
-    chunk::{self, Chunk},
+use crate::{
+    chunk::{WORLD_CHUNK_LENGTH, Chunk, CHUNK_SHAPE},
     voxel::Voxel,
 };
 use arc_swap::ArcSwap;
 use bevy::math::{I64Vec3, IVec3};
 use fastnoise_lite::{self, FastNoiseLite};
+use ndshape::Shape;
 use std::{array, sync::Arc, u16};
 
 pub fn chunk_pos_to_voxel_pos(chunk_pos: IVec3) -> I64Vec3 {
-    chunk_pos.as_i64vec3() * chunk::LENGTH_IN_VOXELS as i64
+    chunk_pos.as_i64vec3() * WORLD_CHUNK_LENGTH as i64
 }
 
 static NOISE: std::sync::LazyLock<FastNoiseLite> =
@@ -18,7 +19,7 @@ pub fn temp(chunk_pos: IVec3) -> Chunk {
     let voxel_pos = chunk_pos_to_voxel_pos(chunk_pos);
 
     let mut c: Chunk = Chunk::Mixed(ArcSwap::new(Arc::new(array::from_fn(|i| {
-        let global_position = chunk::delinearize(i).as_i64vec3() + voxel_pos;
+        let global_position = CHUNK_SHAPE.delinearize(i).as_i64vec3() + voxel_pos;
         let y_cutoff =
             (NOISE.get_noise_2d(global_position.x as f32, global_position.z as f32) * 100.0) as i64;
         if global_position.y > y_cutoff {

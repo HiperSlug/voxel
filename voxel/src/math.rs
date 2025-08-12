@@ -7,6 +7,14 @@ pub enum Sign {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
+pub enum Axis {
+    X = 0,
+    Y = 1,
+    Z = 2,
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy)]
 pub enum SignedAxis {
     PosX = 0,
     NegX = 1,
@@ -39,14 +47,6 @@ impl SignedAxis {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
-pub enum Axis {
-    X = 0,
-    Y = 1,
-    Z = 2,
-}
-
-#[repr(u8)]
-#[derive(Debug, Clone, Copy)]
 pub enum AxisPermutation {
     XYZ = 0,
     YZX = 1,
@@ -65,12 +65,12 @@ impl AxisPermutation {
         z: usize,
     ) -> usize {
         match self {
-            Self::XYZ => x + y * LENGTH + z * LENGTH.pow(2),
-            Self::ZXY => z + x * LENGTH + y * LENGTH.pow(2),
-            Self::YZX => y + z * LENGTH + x * LENGTH.pow(2),
-            Self::ZYX => z + y * LENGTH + x * LENGTH.pow(2),
-            Self::XZY => x + z * LENGTH + y * LENGTH.pow(2),
-            Self::YXZ => y + x * LENGTH + z * LENGTH.pow(2),
+            Self::XYZ => x + y * LENGTH + z * LENGTH * LENGTH,
+            Self::ZXY => z + x * LENGTH + y * LENGTH * LENGTH,
+            Self::YZX => y + z * LENGTH + x * LENGTH * LENGTH,
+            Self::ZYX => z + y * LENGTH + x * LENGTH * LENGTH,
+            Self::XZY => x + z * LENGTH + y * LENGTH * LENGTH,
+            Self::YXZ => y + x * LENGTH + z * LENGTH * LENGTH,
         }
     }
 
