@@ -9,7 +9,7 @@ mod voxel_volume;
 
 pub use plugin::VoxelPlugin;
 
-pub use voxel_volume::{VoxelViewer, VoxelVolume};
+// pub use voxel_volume::{VoxelViewer, VoxelVolume};
 
 mod assets;
 

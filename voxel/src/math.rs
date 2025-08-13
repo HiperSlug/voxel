@@ -97,7 +97,7 @@ impl SignedAxis {
     }
 
     #[inline]
-    pub const fn as_unsigned(&self) -> Axis {
+    pub const fn abs(&self) -> Axis {
         use Axis::*;
         use SignedAxis::*;
 
@@ -109,7 +109,7 @@ impl SignedAxis {
     }
 
     #[inline]
-    pub const fn as_usize(&self) -> usize {
+    pub const fn axis_major_index(&self) -> usize {
         (*self) as usize
     }
 
@@ -161,11 +161,11 @@ impl AxisPermutation {
 
     #[inline]
     pub const fn sigificance(&self, axis: Axis) -> usize {
-        self.sigificance_table()[axis.as_usize()]
+        self.sigificance_map()[axis.as_usize()]
     }
 
     #[inline]
-    pub const fn sigificance_table(&self) -> [usize; 3] {
+    pub const fn sigificance_map(&self) -> [usize; 3] {
         use AxisPermutation::*;
 
         match self {
