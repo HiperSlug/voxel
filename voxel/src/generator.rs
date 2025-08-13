@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{WORLD_CHUNK_LENGTH, Chunk, CHUNK_SHAPE},
+    chunk::{CHUNK_SHAPE, Chunk, WORLD_CHUNK_LENGTH},
     voxel::Voxel,
 };
 use arc_swap::ArcSwap;

@@ -1,3 +1,5 @@
+use bevy::math::{IVec3, UVec3};
+
 #[repr(i8)]
 #[derive(Debug, Clone, Copy)]
 pub enum Sign {
@@ -13,6 +15,18 @@ pub enum Axis {
     Z = 2,
 }
 
+impl Axis {
+    pub const fn as_uvec3(&self) -> UVec3 {
+        use Axis::*;
+
+        match self {
+            X => UVec3::new(1, 0, 0),
+            Y => UVec3::new(0, 1, 0),
+            Z => UVec3::new(0, 0, 1),
+        }
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum SignedAxis {
@@ -25,23 +39,84 @@ pub enum SignedAxis {
 }
 
 impl SignedAxis {
+    pub const ALL: [SignedAxis; 6] = [
+        SignedAxis::PosX,
+        SignedAxis::NegX,
+        SignedAxis::PosY,
+        SignedAxis::NegY,
+        SignedAxis::PosZ,
+        SignedAxis::NegZ,
+    ];
+
     #[inline]
-    pub const fn as_unsigned(&self) -> Axis {
+    pub const fn split(&self) -> (Sign, Axis) {
+        use Axis::*;
+        use Sign::*;
+        use SignedAxis::*;
+
         match self {
-            Self::PosX | Self::NegX => Axis::X,
-            Self::PosY | Self::NegY => Axis::Y,
-            Self::PosZ | Self::NegZ => Axis::Z,
+            PosX => (Pos, X),
+            NegX => (Neg, X),
+            PosY => (Pos, Y),
+            NegY => (Neg, Y),
+            PosZ => (Pos, Z),
+            NegZ => (Neg, Z),
         }
     }
 
     #[inline]
-    pub const fn as_index(&self) -> usize {
+    pub const fn as_ivec3(&self) -> IVec3 {
+        use SignedAxis::*;
+
+        match self {
+            PosX => IVec3::new(1, 0, 0),
+            NegX => IVec3::new(-1, 0, 0),
+            PosY => IVec3::new(0, 1, 0),
+            NegY => IVec3::new(0, -1, 0),
+            PosZ => IVec3::new(0, 0, 1),
+            NegZ => IVec3::new(0, 0, -1),
+        }
+    }
+
+    #[inline]
+    pub const fn as_coords(&self) -> [i32; 3] {
+        use SignedAxis::*;
+
+        match self {
+            PosX => [1, 0, 0],
+            NegX => [-1, 0, 0],
+            PosY => [0, 1, 0],
+            NegY => [0, -1, 0],
+            PosZ => [0, 0, 1],
+            NegZ => [0, 0, -1],
+        }
+    }
+
+    #[inline]
+    pub const fn as_unsigned(&self) -> Axis {
+        use Axis::*;
+        use SignedAxis::*;
+
+        match self {
+            PosX | NegX => X,
+            PosY | NegY => Y,
+            PosZ | NegZ => Z,
+        }
+    }
+
+    #[inline]
+    pub const fn as_usize(&self) -> usize {
         (*self) as usize
     }
 
     #[inline]
+    pub const fn as_u8(&self) -> u8 {
+        (*self) as u8
+    }
+
+    #[inline]
     pub const fn is_positive(&self) -> bool {
-        (self.as_index() & 1) == 0
+        (self.as_u8() & 1) == 0
     }
 }
 
@@ -58,37 +133,26 @@ pub enum AxisPermutation {
 
 impl AxisPermutation {
     #[inline]
-    pub const fn linearize_cubic<const LENGTH: usize>(
-        &self,
-        x: usize,
-        y: usize,
-        z: usize,
-    ) -> usize {
-        match self {
-            Self::XYZ => x + y * LENGTH + z * LENGTH * LENGTH,
-            Self::ZXY => z + x * LENGTH + y * LENGTH * LENGTH,
-            Self::YZX => y + z * LENGTH + x * LENGTH * LENGTH,
-            Self::ZYX => z + y * LENGTH + x * LENGTH * LENGTH,
-            Self::XZY => x + z * LENGTH + y * LENGTH * LENGTH,
-            Self::YXZ => y + x * LENGTH + z * LENGTH * LENGTH,
-        }
-    }
-
-    #[inline]
     pub const fn even(axis: Axis) -> Self {
+        use Axis::*;
+        use AxisPermutation::*;
+
         match axis {
-            Axis::X => Self::XYZ,
-            Axis::Y => Self::YZX,
-            Axis::Z => Self::ZXY,
+            X => XYZ,
+            Y => YZX,
+            Z => ZXY,
         }
     }
 
     #[inline]
     pub const fn odd(axis: Axis) -> Self {
+        use Axis::*;
+        use AxisPermutation::*;
+
         match axis {
-            Axis::X => Self::XZY,
-            Axis::Y => Self::YXZ,
-            Axis::Z => Self::ZYX,
+            X => XZY,
+            Y => YXZ,
+            Z => ZYX,
         }
     }
 }

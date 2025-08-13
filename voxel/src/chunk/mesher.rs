@@ -1,21 +1,52 @@
-use super::{CHUNK_LENGTH, CHUNK_AREA, CHUNK_VOLUME};
+use ndshape::{ConstShape, ConstShape3u32};
+use std::{array, collections::BTreeSet};
+
+use crate::{math::{Axis, Sign, SignedAxis}, voxel::Voxel};
+
+use super::{
+    CHUNK_AREA, CHUNK_LENGTH, CHUNK_VOLUME, PADDED_CHUNK_AREA, PADDED_CHUNK_LENGTH,
+    PADDED_CHUNK_VOLUME, X_SHIFT, X_STRIDE, Y_SHIFT, Y_STRIDE, Z_SHIFT, Z_STRIDE
+};
+
+type LayerShape = ConstShape3u32<6, PADDED_CHUNK_LENGTH, PADDED_CHUNK_LENGTH>;
+const LAYER_SHAPE: LayerShape = LayerShape {};
+
+const LAYER_L_STRIDE: u32 = LayerShape::STRIDES[0];
+const LAYER_X_STRIDE: u32 = LayerShape::STRIDES[1];
+const LAYER_Y_STRIDE: u32 = LayerShape::STRIDES[2];
+
+const UNPADDED_MASK: u64 = 0x7FFF_FFFF_FFFF_FFFE;
+
+impl SignedAxis {
+    const fn stride_offset(&self, base: u32) -> u32 {
+        let (sign, axis) = self.split();
+        let unsigned_stride = match axis {
+            Axis::X => X_STRIDE,
+            Axis::Y => Y_STRIDE,
+            Axis::Z => Z_STRIDE,
+        };
+
+        match sign {
+            Sign::Pos => base + unsigned_stride,
+            Sign::Neg => base - unsigned_stride,
+        }
+    }
+}
 
 pub struct Mesher {
     pub quads: [Vec<VoxelQuad>; 6],
-
-    face_masks: Box<[u64; CHUNK_AREA * 6]>,
-
-    upward_merged: Box<[u8; CHUNK_AREA]>,
-    right_merged: Box<[u8; CHUNK_AREA]>,
+    face_masks: Box<[u64; LayerShape::SIZE as usize]>,
+    upward_merged: Box<[u8; PADDED_CHUNK_AREA as usize]>,
+    right_merged: Box<[u8; PADDED_CHUNK_AREA as usize]>,
 }
 
 impl Mesher {
     pub fn new() -> Self {
         Self {
             quads: array::from_fn(|_| Vec::new()),
-            face_masks: Box::new([0; CHUNK_AREA * 6]),
-            upward_merged: Box::new([0; CHUNK_AREA]),
-            right_merged: Box::new([0; CHUNK_AREA]),
+            face_masks: Box::new([0; LayerShape::SIZE as usize]),
+            upward_merged: Box::new([0; PADDED_CHUNK_AREA as usize]),
+            right_merged: Box::new([0; PADDED_CHUNK_AREA as usize]),
         }
     }
 
@@ -23,39 +54,45 @@ impl Mesher {
         self.face_masks.fill(0);
         self.upward_merged.fill(0);
         self.right_merged.fill(0);
-        for face in &mut self.quads {
-            face.clear();
+        for vec in &mut self.quads {
+            vec.clear();
         }
     }
 
     fn face_culling(
         &mut self,
-        voxels: &[Voxel; CHUNK_VOLUME],
+        voxels: &[Voxel; PADDED_CHUNK_VOLUME as usize],
         transparents: &BTreeSet<Voxel>,
     ) {
-        for layer_pos in UNRANGE {
-            let layer_index = layer_pos * CHUNK_LENGTH;
-            let unpadded_layer_index = (layer_pos - 1) * CHUNK_LENGTH;
+        for z in 1..(PADDED_CHUNK_LENGTH - 1) {
+            let z_stride = z << Z_SHIFT;
+            for y in 1..(PADDED_CHUNK_LENGTH - 1) {
+                let y_stride = y << Y_SHIFT;
+                let zy_stride = z_stride + y_stride;
 
-            for column_pos in UNRANGE {
-                let column_index = layer_index + column_pos;
-                let unpadded_index = unpadded_layer_index + (column_pos - 1);
+                let layer_y_stride = y * LAYER_Y_STRIDE;
 
-                for bit_pos in UNRANGE {
-                    let cubic_index = column_index + bit_pos;
-                    let voxel = voxels[cubic_index];
+                for x in 1..(PADDED_CHUNK_LENGTH - 1) {
+                    let x_stride = x << X_SHIFT;
+                    let zyx_stride = zy_stride + x_stride;
+
+                    let layer_x_stride = x * LAYER_X_STRIDE;
+                    let layer_yx_stride = layer_y_stride + layer_x_stride;
+
+                    let voxel = voxels[zyx_stride as usize];
                     if voxel.is_sentinel() {
                         continue;
                     }
 
-                    for (index, adj_index) in (0..6)
-                        .map(|i| unpadded_index + i * CHUNK_AREA)
-                        .zip(CUBIC_OFFSETS.map(|offset| ((cubic_index as isize) + offset) as usize))
-                    {
-                        let neighbor = voxels[adj_index];
+                    for signed_axis in SignedAxis::ALL {
+                        let index = signed_axis.stride_offset(zyx_stride) as usize;
+                        let neighbor = voxels[index];
 
-                        self.face_masks[index] |=
-                            (is_visible(voxel, neighbor, transparents) as u64) << (bit_pos - 1);
+                        let layer_l_stride = signed_axis.as_usize() * LAYER_L_STRIDE as usize;
+                        let layer_yxl_stride = layer_yx_stride as usize + layer_l_stride;
+
+                        self.face_masks[layer_yxl_stride] |=
+                            (is_visible(voxel, neighbor, transparents) as u64) << z;
                     }
                 }
             }
@@ -64,65 +101,102 @@ impl Mesher {
 
     fn fast_face_culling(
         &mut self,
-        voxels: &[Voxel; CHUNK_VOLUME],
-        opaque_mask: &[u64; CHUNK_AREA],
-        transparent_mask: &[u64; CHUNK_AREA],
+        voxels: &[Voxel; PADDED_CHUNK_VOLUME as usize],
+        opaque_mask: &[u64; PADDED_CHUNK_AREA as usize],
+        transparent_mask: &[u64; PADDED_CHUNK_AREA as usize],
     ) {
-        for layer_pos in UNRANGE {
-            let layer_index = layer_pos * CHUNK_LENGTH;
+        for y in 1..(PADDED_CHUNK_LENGTH - 1) {
+            let y_stride = y << Y_SHIFT;
 
-            for column_pos in UNRANGE {
-                let column_index = layer_index + column_pos;
-                let column_indices: [usize; 6] = array::from_fn(|i| layer_index + i * CHUNK_AREA);
+            let layer_y_stride = y * LAYER_Y_STRIDE;
 
-                let padded_column = opaque_mask[column_index];
-                let unpadded_column = padded_column & UNMASK;
+            for x in 1..(PADDED_CHUNK_LENGTH - 1) {
+                let x_stride = x << X_SHIFT;
+                let yx_stride = y_stride + x_stride;
 
-                if unpadded_column != 0 {
-                    let adjacent_columns = [
-                        opaque_mask[column_index + CHUNK_LENGTH],
-                        opaque_mask[column_index - CHUNK_LENGTH],
-                        opaque_mask[column_index + 1],
-                        opaque_mask[column_index - 1],
-                        padded_column << 1,
-                        padded_column >> 1,
-                    ]
-                    .into_iter();
+                let layer_x_stride = x * LAYER_X_STRIDE; 
+                let layer_yx_stride = layer_y_stride + layer_x_stride;
 
-                    for (column_index, adj_col) in
-                        column_indices.iter().copied().zip(adjacent_columns)
-                    {
-                        self.face_masks[column_index] = (unpadded_column & !adj_col) >> 1;
-                    }
+                let column_index = yx_stride as usize;
+
+                let column = opaque_mask[column_index];
+                let unpadded_column = column & UNPADDED_MASK;
+                if unpadded_column == 0 {
+                    continue;
                 }
 
-                let cubic_base = column_index * CHUNK_LENGTH;
+                for signed_axis in SignedAxis::ALL {
+                    let (sign, axis) = signed_axis.split();
+                    let adjacent_column = match axis {
+                        Axis::X => {
+                            let index = match sign {
+                                Sign::Pos => yx_stride + X_STRIDE,
+                                Sign::Neg => yx_stride - X_STRIDE,
+                            };
 
-                let mut unpadded_transparent = transparent_mask[layer_index] & UNMASK;
-                while unpadded_transparent != 0 {
-                    let bit_pos = unpadded_transparent.trailing_zeros() as usize;
-                    unpadded_transparent &= !(1 << bit_pos);
+                            opaque_mask[index as usize]
+                        },
+                        Axis::Y => {
+                            let index = match sign {
+                                Sign::Pos => yx_stride + Y_STRIDE,
+                                Sign::Neg => yx_stride - Y_STRIDE,
+                            };
 
-                    let cubic_index = cubic_base + bit_pos;
+                            opaque_mask[index as usize]
+                        },
+                        Axis::Z => {
+                            match sign {
+                                Sign::Pos => column << 1,
+                                Sign::Neg => column >> 1,
+                            }
+                        },
+                    };
 
-                    let voxel = voxels[cubic_index];
+                    let layer_l_stride = signed_axis.as_usize() * LAYER_L_STRIDE as usize;
+                    let layer_yxl_stride = layer_l_stride + layer_yx_stride as usize;
 
-                    for (column_index, cubic_idx) in column_indices.iter().copied().zip(
-                        CUBIC_OFFSETS
-                            .iter()
-                            .copied()
-                            .map(|offset| (cubic_index as isize + offset) as usize),
-                    ) {
-                        let neighbor = voxels[cubic_idx];
-                        self.face_masks[column_index] |=
-                            ((voxel != neighbor) as u64) << (bit_pos - 1);
+                    self.face_masks[layer_yxl_stride] = column & adjacent_column; 
+                }
+
+                let mut transparent = transparent_mask[column_index] & UNPADDED_MASK;
+                while transparent != 0 {
+                    let z = transparent.trailing_zeros();
+                    transparent &= !(1 << z);
+
+                    let z_stride = z << Z_SHIFT;
+                    let zyx_stride = yx_stride + z_stride;
+                    let voxel = voxels[zyx_stride as usize];
+
+                    for signed_axis in SignedAxis::ALL {
+                        let (sign, axis) = signed_axis.split();
+                        let unsigned_stride = match axis {
+                            Axis::X => X_STRIDE,
+                            Axis::Y => Y_STRIDE,
+                            Axis::Z => Z_STRIDE,
+                        };
+
+                        let neighbor_index = match sign {
+                            Sign::Pos => zyx_stride + unsigned_stride,
+                            Sign::Neg => zyx_stride - unsigned_stride,
+                        };
+                        let neighbor = voxels[neighbor_index as usize];
+
+                        let layer_l_stride = signed_axis.as_usize() * LAYER_L_STRIDE as usize;
+                        let layer_yxl_stride = layer_l_stride + layer_yx_stride as usize;
+
+                        self.face_masks[layer_yxl_stride] |=
+                            ((voxel != neighbor) as u64) << z;
                     }
                 }
             }
         }
     }
 
-    fn face_merging(&mut self, voxels: &[Voxel; CHUNK_VOLUME]) {
+    fn face_merging(&mut self, voxels: &[Voxel; PADDED_CHUNK_VOLUME as usize]) {
+        for signed_axis in SignedAxis::ALL {
+            
+        }
+        
         for signed_axis in [
             SignedAxis::PosX,
             SignedAxis::NegX,
@@ -161,12 +235,11 @@ impl Mesher {
                         let voxel = voxels[voxel_index];
 
                         if (up_column >> bit_pos) != 0 {
-                            let up_voxel_index = permutation
-                                .linearize_cubic::<CHUNK_LENGTH>(
-                                    layer_pos + 1,
-                                    column_pos + 2,
-                                    bit_pos + 1,
-                                );
+                            let up_voxel_index = permutation.linearize_cubic::<CHUNK_LENGTH>(
+                                layer_pos + 1,
+                                column_pos + 2,
+                                bit_pos + 1,
+                            );
                             let up_voxel = voxels[up_voxel_index];
 
                             if up_voxel == voxel {
@@ -382,5 +455,5 @@ impl VoxelQuad {
 
 #[inline]
 fn is_visible(voxel: Voxel, neighbor: Voxel, transparents: &BTreeSet<Voxel>) -> bool {
-    neighbor == 0 || (voxel != neighbor && transparents.contains(&neighbor))
+    neighbor.is_sentinel() || (voxel != neighbor && transparents.contains(&neighbor))
 }
