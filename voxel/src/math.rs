@@ -25,6 +25,10 @@ impl Axis {
             Z => UVec3::new(0, 0, 1),
         }
     }
+
+    pub const fn as_usize(&self) -> usize {
+        (*self) as usize
+    }
 }
 
 #[repr(u8)]
@@ -120,15 +124,14 @@ impl SignedAxis {
     }
 }
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum AxisPermutation {
-    XYZ = 0,
-    YZX = 1,
-    ZXY = 2,
-    XZY = 3,
-    YXZ = 4,
-    ZYX = 5,
+    XYZ,
+    YZX,
+    ZXY,
+    XZY,
+    YXZ,
+    ZYX,
 }
 
 impl AxisPermutation {
@@ -153,6 +156,25 @@ impl AxisPermutation {
             X => XZY,
             Y => YXZ,
             Z => ZYX,
+        }
+    }
+
+    #[inline]
+    pub const fn sigificance(&self, axis: Axis) -> usize {
+        self.sigificance_table()[axis.as_usize()]
+    }
+
+    #[inline]
+    pub const fn sigificance_table(&self) -> [usize; 3] {
+        use AxisPermutation::*;
+
+        match self {
+            XYZ => [0, 1, 2],
+            YZX => [2, 0, 1],
+            ZXY => [1, 2, 0],
+            XZY => [0, 2, 1],
+            YXZ => [1, 0, 2],
+            ZYX => [2, 1, 0],
         }
     }
 }
