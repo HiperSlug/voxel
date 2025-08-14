@@ -1,16 +1,11 @@
-pub mod chunk;
-pub mod voxel;
+mod chunk;
 
-mod plugin;
+mod voxel;
 
 mod generator;
 
+mod voxel_viewer;
+
 mod voxel_volume;
 
-pub use plugin::VoxelPlugin;
-
-// pub use voxel_volume::{VoxelViewer, VoxelVolume};
-
-mod assets;
-
-// pub mod math;
+mod block_library;

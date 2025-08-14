@@ -1,15 +1,9 @@
-use bevy::{asset::AssetLoader, prelude::*};
+use bevy::{asset::AssetLoader, math::bounding::Aabb3d, prelude::*};
+use math::PerSignedAxis;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_slice as json_de;
 use std::collections::HashMap;
 use walkdir::WalkDir;
-
-use super::texture_array::build_texture_array;
-
-use super::{
-	block::{IntermediateBlock, Block},
-	texture_array::TextureArrayMaterial,
-};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct BlockLibraryConfig {
@@ -18,17 +12,13 @@ struct BlockLibraryConfig {
 }
 
 #[derive(Debug, Asset, TypePath)]
-struct IntermediateBlockLibrary {
-    blocks: HashMap<String, Handle<IntermediateBlock>>,
-    textures: HashMap<String, Handle<Image>>,
-	texture_size: UVec2, 
+pub struct IntermediateBlockLibrary {
+    pub blocks: HashMap<String, Handle<IntermediateBlock>>,
+    pub textures: HashMap<String, Handle<Image>>,
+	pub texture_size: UVec2, 
 }
 
-const ROOT: &str = "block_libs";
-const BLOCKS: &str = "blocks";
-const TEXTURES: &str = "textures";
-
-struct IntermediateBlockLibraryLoader;
+pub struct IntermediateBlockLibraryLoader;
 
 impl AssetLoader for IntermediateBlockLibraryLoader {
     type Asset = IntermediateBlockLibrary;
@@ -59,7 +49,7 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
             let mut textures = HashMap::new();
 
             for library in libraries {
-                let blocks_path = format!("{ROOT}/{library}/{BLOCKS}");
+                let blocks_path = format!("blocks_lib/{library}/blocks");
                 for result in WalkDir::new(&blocks_path).into_iter().filter_entry(|e| e.file_type().is_file()) {
 					let dir = match result {
 						Ok(dir) => dir,
@@ -84,7 +74,7 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
                     blocks.insert(name.to_string(), handle);
                 }
 
-                let textures_path = format!("{ROOT}/{library}/{TEXTURES}");
+                let textures_path = format!("blocks_lib/{library}/textures");
 				for result in WalkDir::new(&textures_path).into_iter().filter_entry(|e| e.file_type().is_file()) {
 					let dir = match result {
 						Ok(dir) => dir,
@@ -119,61 +109,37 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
     }
 }
 
-#[derive(Debug)]
-pub struct BlockLibrary {
-	pub blocks: Vec<Block>,
-	pub names: Vec<String>,
-	pub blocks_map: HashMap<String, Block>,
-	pub texture_map: HashMap<String, usize>,
-	pub material: Handle<TextureArrayMaterial>,
+#[derive(Debug, Serialize, Deserialize, Asset, TypePath, Clone)]
+pub struct IntermediateBlock {
+    pub display_name: String,
+    pub collision_aabbs: Vec<Aabb3d>,
+    pub is_translucent: bool,
+    pub textures: PerSignedAxis<String>,
 }
 
-impl BlockLibrary {
-	pub fn build(
-		intermediate: IntermediateBlockLibrary, 
-		image_assets: ResMut<Assets<Image>>,
-		material_assets: ResMut<Assets<TextureArrayMaterial>>,
-		block_assets: &Res<Assets<IntermediateBlock>>,
-	) -> Self {
-		let IntermediateBlockLibrary {
-			texture_size,
-			textures,
-			blocks: intermediate_blocks,
-		} = intermediate;
+#[derive(Debug, Default)]
+pub struct IntermediateBlockLoader;
 
-		let (texture_map, material) = build_texture_array(textures, texture_size, image_assets, material_assets);
+impl AssetLoader for IntermediateBlockLoader {
+    type Asset = IntermediateBlock;
+    type Settings = ();
+    type Error = anyhow::Error;
 
-		let mut blocks = Vec::new();
-		let mut names = Vec::new();
-		let mut blocks_map = HashMap::new();
+    fn extensions(&self) -> &[&str] {
+        &["json"]
+    }
 
-		for (name, handle) in intermediate_blocks {
-			let block = match block_assets.get(handle.id()) {
-				Some(thing) => thing,
-				None => {
-					error!("IntermediateBlock asset not yet loaded");
-					continue;
-				}
-			};
+    fn load(
+            &self,
+            reader: &mut dyn bevy::asset::io::Reader,
+            _: &Self::Settings,
+            _: &mut bevy::asset::LoadContext,
+        ) -> impl bevy::tasks::ConditionalSendFuture<Output = std::result::Result<Self::Asset, Self::Error>> {
+        async move {
+            let mut buffer = Vec::new();
+            reader.read_to_end(&mut buffer).await?;
 
-			let block = match Block::from_intermediate(block, &texture_map) {
-				Some(thing) => thing,
-				None => {
-					error!("IntermediateBlock {} has invalid texture", block.display_name);
-					continue;
-				},
-			};
-			blocks.push(block.clone());
-			names.push(name.clone());
-			blocks_map.insert(name, block);
-		}
-
-		Self {
-			blocks,
-			blocks_map,
-			names,
-			material,
-			texture_map,
-		}
-	}
+            Ok(json_de(&buffer)?)
+        }
+    }
 }
