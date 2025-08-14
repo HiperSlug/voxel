@@ -1,4 +1,7 @@
+use std::array;
+
 use glam::{IVec3, UVec3};
+use serde::{Deserialize, Serialize};
 
 #[repr(i8)]
 #[derive(Debug, Clone, Copy)]
@@ -178,5 +181,56 @@ impl AxisPermutation {
             YXZ => [1, 0, 2],
             ZYX => [2, 1, 0],
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PerSignedAxis<T>(pub [T; 6]);
+
+impl<T> PerSignedAxis<T> {
+    #[inline]
+    pub const fn new(data: [T; 6]) -> Self {
+        Self(data)
+    }
+
+    #[inline]
+    pub const fn get(&self, signed_axis: SignedAxis) -> &T {
+        &self.0[signed_axis.as_usize()]
+    }
+}
+
+impl<T> From<[T; 6]> for PerSignedAxis<T> {
+    fn from(value: [T; 6]) -> Self {
+        Self(value)
+    }
+}
+
+impl<T> From<PerSignedAxis<T>> for [T; 6] {
+    fn from(value: PerSignedAxis<T>) -> Self {
+        value.0
+    }
+}
+
+impl<T: Serialize> Serialize for PerSignedAxis<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for PerSignedAxis<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::new(<[T; 6]>::deserialize(deserializer)?))
+    }
+}
+
+impl<T: Default + Copy> Default for PerSignedAxis<T> {
+    fn default() -> Self {
+        Self::new(array::from_fn(|_| T::default()))
     }
 }

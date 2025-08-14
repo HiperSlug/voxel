@@ -1,113 +1,179 @@
-use bevy::{
-    asset::{LoadedFolder, prelude::*},
-    prelude::*,
-};
-use std::{collections::HashMap, sync::Arc};
+use bevy::{asset::AssetLoader, prelude::*};
+use serde::{Deserialize, Serialize};
+use serde_json::de::from_slice as json_de;
+use std::collections::HashMap;
+use walkdir::WalkDir;
 
-use crate::assets::load_folders::Loaded;
+use super::texture_array::build_texture_array;
 
 use super::{
-    block::{Block, BlockLoader},
-    load_folders::{WalkSettings, init_load_folders, poll_folders},
+	block::{IntermediateBlock, Block},
+	texture_array::TextureArrayMaterial,
 };
 
-pub struct BlocksWalkSettings;
-
-impl WalkSettings for BlocksWalkSettings {
-    const MAX: usize = 2;
-    const MIN: usize = 2;
-    const ROOT: &str = "block_lib";
-    const TARGET: &str = "blocks";
+#[derive(Debug, Deserialize, Serialize)]
+struct BlockLibraryConfig {
+    libraries: Vec<String>,
+	texture_size: UVec2, 
 }
 
-#[derive(Debug, States, Hash, PartialEq, Eq, Clone, Copy)]
-pub enum BlockLibraryState {
-    Loading,
-    Loaded,
+#[derive(Debug, Asset, TypePath)]
+struct IntermediateBlockLibrary {
+    blocks: HashMap<String, Handle<IntermediateBlock>>,
+    textures: HashMap<String, Handle<Image>>,
+	texture_size: UVec2, 
+}
+
+const ROOT: &str = "block_libs";
+const BLOCKS: &str = "blocks";
+const TEXTURES: &str = "textures";
+
+struct IntermediateBlockLibraryLoader;
+
+impl AssetLoader for IntermediateBlockLibraryLoader {
+    type Asset = IntermediateBlockLibrary;
+    type Error = anyhow::Error;
+    type Settings = ();
+
+    fn extensions(&self) -> &[&str] {
+        &["json"]
+    }
+
+    fn load(
+        &self,
+        reader: &mut dyn bevy::asset::io::Reader,
+        _: &Self::Settings,
+        load_context: &mut bevy::asset::LoadContext,
+    ) -> impl bevy::tasks::ConditionalSendFuture<Output = std::result::Result<Self::Asset, Self::Error>>
+    {
+        async move {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+
+			let BlockLibraryConfig {
+				libraries,
+				texture_size,
+			} = json_de::<BlockLibraryConfig>(&bytes)?;
+
+            let mut blocks = HashMap::new();
+            let mut textures = HashMap::new();
+
+            for library in libraries {
+                let blocks_path = format!("{ROOT}/{library}/{BLOCKS}");
+                for result in WalkDir::new(&blocks_path).into_iter().filter_entry(|e| e.file_type().is_file()) {
+					let dir = match result {
+						Ok(dir) => dir,
+						Err(e) => {
+							warn!("Error {e} walking {blocks_path}");
+							continue;
+						},
+					};
+
+                    let path = dir.path();
+                    let Some(os_name) = path.file_stem() else {
+						warn!("Nameless block at {path:?} skipping");
+                        continue;
+                    };
+
+					let Some(name) = os_name.to_str() else {
+						warn!("Invalid utf8 name at {path:?} skipping");
+                        continue;
+					};
+
+                    let handle = load_context.load(path);
+                    blocks.insert(name.to_string(), handle);
+                }
+
+                let textures_path = format!("{ROOT}/{library}/{TEXTURES}");
+				for result in WalkDir::new(&textures_path).into_iter().filter_entry(|e| e.file_type().is_file()) {
+					let dir = match result {
+						Ok(dir) => dir,
+						Err(e) => {
+							warn!("Error {e} walking {textures_path}");
+							continue;
+						},
+					};
+
+                    let path = dir.path();
+                    let Some(os_name) = path.file_stem() else {
+						warn!("Nameless texture at {path:?} skipping");
+                        continue;
+                    };
+
+					let Some(name) = os_name.to_str() else {
+						warn!("Invalid utf8 name at {path:?} skipping");
+                        continue;
+					};
+
+                    let handle = load_context.load(path);
+                    textures.insert(name.to_string(), handle);
+                }
+            }
+
+			Ok(IntermediateBlockLibrary {
+				blocks,
+				textures,
+				texture_size,
+			})
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct BlockLibrary {
-    pub blocks: Vec<Arc<Block>>,
-    pub name_to_index: HashMap<String, usize>,
-    pub index_to_name: Vec<String>,
+	pub blocks: Vec<Block>,
+	pub names: Vec<String>,
+	pub blocks_map: HashMap<String, Block>,
+	pub texture_map: HashMap<String, usize>,
+	pub material: Handle<TextureArrayMaterial>,
 }
 
-#[derive(Debug, Resource, Deref, DerefMut)]
-pub struct SharedBlockLibrary(pub Arc<BlockLibrary>);
+impl BlockLibrary {
+	pub fn build(
+		intermediate: IntermediateBlockLibrary, 
+		image_assets: ResMut<Assets<Image>>,
+		material_assets: ResMut<Assets<TextureArrayMaterial>>,
+		block_assets: &Res<Assets<IntermediateBlock>>,
+	) -> Self {
+		let IntermediateBlockLibrary {
+			texture_size,
+			textures,
+			blocks: intermediate_blocks,
+		} = intermediate;
 
-pub fn build_block_library(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    assets_f: Res<Assets<LoadedFolder>>,
-    assets_b: Res<Assets<Block>>,
-    mut events: EventReader<Loaded<BlocksWalkSettings>>,
-    mut state: ResMut<NextState<BlockLibraryState>>,
-) {
-    let Some(event) = events.read().next() else {
-        return;
-    };
+		let (texture_map, material) = build_texture_array(textures, texture_size, image_assets, material_assets);
 
-    let mut name_to_index = HashMap::new();
-    let mut index_to_name = Vec::new();
-    let mut blocks = Vec::new();
+		let mut blocks = Vec::new();
+		let mut names = Vec::new();
+		let mut blocks_map = HashMap::new();
 
-    for untyped in event
-        .iter()
-        .map(|f| assets_f.get(f.id()).unwrap())
-        .flat_map(|f| f.handles.iter())
-        .cloned()
-    {
-        let Some(name) = asset_server.get_path(untyped.id()).and_then(|p| {
-            p.path()
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-        }) else {
-            warn!("Unable to resolve block `name` for handle {untyped:?}. Skipping...");
-            continue;
-        };
+		for (name, handle) in intermediate_blocks {
+			let block = match block_assets.get(handle.id()) {
+				Some(thing) => thing,
+				None => {
+					error!("IntermediateBlock asset not yet loaded");
+					continue;
+				}
+			};
 
-        let handle = match untyped.try_typed::<Block>() {
-            Ok(b) => b,
-            Err(e) => {
-                warn!("Handle {name} cannot be converted to `Block` type: {e}. Skipping...");
-                continue;
-            }
-        };
+			let block = match Block::from_intermediate(block, &texture_map) {
+				Some(thing) => thing,
+				None => {
+					error!("IntermediateBlock {} has invalid texture", block.display_name);
+					continue;
+				},
+			};
+			blocks.push(block.clone());
+			names.push(name.clone());
+			blocks_map.insert(name, block);
+		}
 
-        let block = assets_b.get_arc(handle.id()).unwrap();
-
-        index_to_name.push(name.clone());
-        name_to_index.insert(name, blocks.len());
-
-        blocks.push(block);
-    }
-
-    commands.insert_resource(SharedBlockLibrary(Arc::new(BlockLibrary {
-        blocks,
-        name_to_index,
-        index_to_name,
-    })));
-
-    state.set(BlockLibraryState::Loaded);
-}
-
-pub struct BlockLibraryPlugin;
-
-impl Plugin for BlockLibraryPlugin {
-    fn build(&self, app: &mut App) {
-        app.insert_state(BlockLibraryState::Loading)
-            .init_asset::<Block>()
-            .init_asset_loader::<BlockLoader>()
-            .add_systems(
-                OnEnter(BlockLibraryState::Loading),
-                init_load_folders::<BlocksWalkSettings>,
-            )
-            .add_systems(
-                Update,
-                (poll_folders::<BlocksWalkSettings>, build_block_library)
-                    .chain()
-                    .run_if(in_state(BlockLibraryState::Loading)),
-            );
-    }
+		Self {
+			blocks,
+			blocks_map,
+			names,
+			material,
+			texture_map,
+		}
+	}
 }

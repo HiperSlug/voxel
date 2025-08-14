@@ -3415,6 +3415,7 @@ name = "math"
 version = "0.1.0"
 dependencies = [
  "glam 0.30.5",
+ "serde",
 ]
 
 [[package]]
