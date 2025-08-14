@@ -1,10 +1,17 @@
-use bevy::math::{IVec3, UVec3};
+use glam::{IVec3, UVec3};
 
 #[repr(i8)]
 #[derive(Debug, Clone, Copy)]
 pub enum Sign {
     Pos = 1,
     Neg = -1,
+}
+
+impl Sign {
+    #[inline]
+    pub const fn signum(&self) -> i32 {
+        (*self) as i32
+    }
 }
 
 #[repr(u8)]
@@ -109,18 +116,13 @@ impl SignedAxis {
     }
 
     #[inline]
-    pub const fn axis_major_index(&self) -> usize {
+    pub const fn as_usize(&self) -> usize {
         (*self) as usize
     }
 
     #[inline]
-    pub const fn as_u8(&self) -> u8 {
-        (*self) as u8
-    }
-
-    #[inline]
     pub const fn is_positive(&self) -> bool {
-        (self.as_u8() & 1) == 0
+        (self.as_usize() & 1) == 0
     }
 }
 

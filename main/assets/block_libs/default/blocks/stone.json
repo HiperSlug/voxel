@@ -1,7 +1,7 @@
 {
 	"display_name": "Stone Block",
 	"collision_aabbs": [[0, 0, 0], [1, 1, 1]],
-	"is_translucent": false,
+	"is_transparent": false,
 	"textures": {
 		"pos_x": "textures/stone.png",
 		"neg_x": "textures/stone.png",

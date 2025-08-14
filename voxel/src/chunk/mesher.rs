@@ -1,10 +1,8 @@
+use math::{Axis, AxisPermutation, Sign, SignedAxis};
 use ndshape::ConstPow2Shape3u32;
 use std::{array, collections::BTreeSet, fmt::Debug};
 
-use crate::{
-    math::{Axis, AxisPermutation, Sign, SignedAxis},
-    voxel::Voxel,
-};
+use crate::voxel::Voxel;
 
 use super::{
     BITS, ChunkShape, PADDED_CHUNK_AREA, PADDED_CHUNK_LENGTH, PADDED_CHUNK_VOLUME, X_SHIFT,
@@ -25,22 +23,6 @@ const LAYER_Z_STRIDE: usize = 1 << LAYER_Z_SHIFT;
 const UNPADDED_MASK: u64 = 0x7FFF_FFFF_FFFF_FFFE;
 
 const MASK_6: u64 = 0x3F;
-
-impl SignedAxis {
-    const fn offset_stride(&self, base: usize) -> usize {
-        let (sign, axis) = self.split();
-        let unsigned_stride = match axis {
-            Axis::X => X_STRIDE,
-            Axis::Y => Y_STRIDE,
-            Axis::Z => Z_STRIDE,
-        };
-
-        match sign {
-            Sign::Pos => base + unsigned_stride,
-            Sign::Neg => base - unsigned_stride,
-        }
-    }
-}
 
 pub struct Mesher {
     pub quads: [Vec<VoxelQuad>; 6],
@@ -74,7 +56,7 @@ impl Mesher {
         transparents: &BTreeSet<Voxel>, // TODO: FIGURE OUT BEST STRUCT FOR THIS
     ) {
         for signed_axis in SignedAxis::ALL {
-            let layer_l_stride = signed_axis.axis_major_index() << LAYER_L_SHIFT;
+            let layer_l_stride = signed_axis.as_usize() << LAYER_L_SHIFT;
 
             for z in 1..(LENGTH - 1) {
                 let z_stride = z << Z_SHIFT;
@@ -98,7 +80,7 @@ impl Mesher {
                             continue;
                         }
 
-                        let neighbor_index = signed_axis.offset_stride(xyz_stride);
+                        let neighbor_index = offset_stride(signed_axis, xyz_stride);
                         let neighbor = voxels[neighbor_index];
 
                         self.face_masks[layer_yzl_stride] |=
@@ -116,7 +98,7 @@ impl Mesher {
         transparent_mask: &[u64; PADDED_CHUNK_AREA],
     ) {
         for signed_axis in SignedAxis::ALL {
-            let layer_l_stride = signed_axis.axis_major_index() << LAYER_L_SHIFT;
+            let layer_l_stride = signed_axis.as_usize() << LAYER_L_SHIFT;
 
             let (sign, axis) = signed_axis.split();
 
@@ -176,7 +158,7 @@ impl Mesher {
 
                         let voxel = voxels[xyz_stride];
 
-                        let neighbor_index = signed_axis.offset_stride(xyz_stride);
+                        let neighbor_index = offset_stride(signed_axis, xyz_stride);
                         let neighbor = voxels[neighbor_index];
 
                         self.face_masks[layer_yzl_stride] |= ((voxel != neighbor) as u64) << x;
@@ -191,7 +173,7 @@ impl Mesher {
             let permutation = AxisPermutation::even(signed_axis.abs());
             let sigificance_map = permutation.sigificance_map();
 
-            let axis_major_index = signed_axis.axis_major_index();
+            let axis_major_index = signed_axis.as_usize();
             let layer_l_stride = axis_major_index << LAYER_L_SHIFT;
 
             for z in 1..(LENGTH - 1) {
@@ -464,6 +446,20 @@ impl Debug for VoxelQuad {
     }
 }
 
+fn offset_stride(axis: SignedAxis, base: usize) -> usize {
+    let (sign, axis) = axis.split();
+    let unsigned_stride = match axis {
+        Axis::X => X_STRIDE,
+        Axis::Y => Y_STRIDE,
+        Axis::Z => Z_STRIDE,
+    };
+
+    match sign {
+        Sign::Pos => base + unsigned_stride,
+        Sign::Neg => base - unsigned_stride,
+    }
+}
+
 pub fn compute_opaque_mask(
     voxels: &[Voxel; PADDED_CHUNK_VOLUME],
     transparents: &BTreeSet<Voxel>,
@@ -506,18 +502,16 @@ pub fn compute_transparent_mask(
 
 #[cfg(test)]
 mod tests {
+    use ndshape::Shape;
     use std::collections::BTreeSet;
 
-    use ndshape::Shape;
-
     use crate::{
-        chunk::{
-            mesher::{compute_opaque_mask, compute_transparent_mask, Mesher}, CHUNK_LENGTH, CHUNK_SHAPE, PADDED_CHUNK_AREA, PADDED_CHUNK_VOLUME
-        },
+        chunk::{CHUNK_LENGTH, CHUNK_SHAPE, PADDED_CHUNK_AREA, PADDED_CHUNK_VOLUME},
         voxel::Voxel,
     };
 
-    /// Show quad output on a simple 2 voxels case
+    use super::{Mesher, compute_opaque_mask, compute_transparent_mask};
+
     #[test]
     fn test_output() {
         let mut voxels = [Voxel::default(); PADDED_CHUNK_VOLUME];
@@ -528,7 +522,6 @@ mod tests {
         let opaque_mask = compute_opaque_mask(&voxels, &BTreeSet::new());
         let trans_mask = Box::new([0; PADDED_CHUNK_AREA]);
         mesher.fast_mesh(&voxels, &opaque_mask, &trans_mask);
-        // self.quads is the output
         for (i, quads) in mesher.quads.iter().enumerate() {
             println!("--- Face {i} ---");
             for &quad in quads {
@@ -537,7 +530,6 @@ mod tests {
         }
     }
 
-    /// Ensures that mesh and fast_mesh return the same results
     #[test]
     fn same_results() {
         let voxels = test_buffer();
@@ -556,7 +548,8 @@ mod tests {
         for x in 0..CHUNK_LENGTH as u32 {
             for y in 0..CHUNK_LENGTH as u32 {
                 for z in 0..CHUNK_LENGTH as u32 {
-                    voxels[CHUNK_SHAPE.linearize([x + 1, y + 1, z + 1]) as usize] = transparent_sphere(x, y, z);
+                    voxels[CHUNK_SHAPE.linearize([x + 1, y + 1, z + 1]) as usize] =
+                        transparent_sphere(x, y, z);
                 }
             }
         }

@@ -13,4 +13,4 @@ pub use plugin::VoxelPlugin;
 
 mod assets;
 
-mod math;
+// pub mod math;

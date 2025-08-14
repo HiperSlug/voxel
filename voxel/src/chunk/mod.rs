@@ -1,12 +1,13 @@
-mod data;
+pub mod data;
 pub mod mesher;
-mod task;
+pub mod task;
 
 use ndshape::ConstPow2Shape3u32;
 
 use crate::voxel::VOXEL_LENGTH;
 
 pub use data::Chunk;
+pub use mesher::{Mesher, VoxelQuad};
 
 const BITS: u32 = 6;
 

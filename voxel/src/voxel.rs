@@ -1,26 +1,26 @@
-use bevy::prelude::{Deref, DerefMut};
-
 pub const VOXEL_LENGTH: f32 = 0.5;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Voxel {
     pub id: u16,
 }
 
 impl Voxel {
+    pub const SENTINEL: u16 = u16::MAX;
+
     #[inline]
-    pub const fn is_sentinel(&self) -> bool {
-        self.id == u16::MAX
+    pub const fn new(id: u16) -> Self {
+        Self { id }
     }
 
     #[inline]
-    pub fn index(&self) -> usize {
-        self.id as usize
+    pub const fn is_sentinel(&self) -> bool {
+        self.id == Self::SENTINEL
     }
 }
 
 impl Default for Voxel {
     fn default() -> Self {
-        Self { id: u16::MAX }
+        Self { id: Self::SENTINEL }
     }
 }
