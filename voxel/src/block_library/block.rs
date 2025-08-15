@@ -1,9 +1,6 @@
-use std::collections::HashMap;
-use bevy::{
-    math::bounding::Aabb3d,
-    prelude::*,
-};
+use bevy::{math::bounding::Aabb3d, prelude::*};
 use math::PerSignedAxis;
+use std::collections::HashMap;
 
 use super::intermediate::IntermediateBlock;
 
@@ -16,7 +13,10 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn from_intermediate(intermediate: &IntermediateBlock, texture_context: &HashMap<String, usize>) -> Option<Self> {
+    pub fn from_intermediate(
+        intermediate: &IntermediateBlock,
+        texture_context: &HashMap<String, usize>,
+    ) -> Option<Self> {
         let IntermediateBlock {
             display_name,
             collision_aabbs,

@@ -2,9 +2,7 @@ use bevy::{
     asset::RenderAssetUsages,
     pbr::{ExtendedMaterial, MaterialExtension},
     prelude::*,
-    render::render_resource::{
-        AsBindGroup, Extent3d, ShaderRef, TextureDimension, TextureFormat,
-    },
+    render::render_resource::{AsBindGroup, Extent3d, ShaderRef, TextureDimension, TextureFormat},
 };
 use std::{collections::HashMap, sync::LazyLock};
 
@@ -27,19 +25,27 @@ impl MaterialExtension for TextureArrayMaterialExt {
     }
 }
 
-const PLACEHOLDER_DATA: &[u8] = [[128, 0, 128, 255], [0, 0, 0, 255], [128, 0, 128, 255], [0, 0, 0, 255]].as_flattened();
+const PLACEHOLDER_DATA: &[u8] = [
+    [128, 0, 128, 255],
+    [0, 0, 0, 255],
+    [128, 0, 128, 255],
+    [0, 0, 0, 255],
+]
+.as_flattened();
 
-static PLACEHOLDER_TEXTURE: LazyLock<Image> = LazyLock::new(|| Image::new(
-    Extent3d {
-        width: 2,
-        height: 2,
-        depth_or_array_layers: 1,
-    }, 
-    TextureDimension::D2, 
-    PLACEHOLDER_DATA.to_vec(), 
-    TextureFormat::Rgba8UnormSrgb, 
-    RenderAssetUsages::default(),
-));
+static PLACEHOLDER_TEXTURE: LazyLock<Image> = LazyLock::new(|| {
+    Image::new(
+        Extent3d {
+            width: 2,
+            height: 2,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        PLACEHOLDER_DATA.to_vec(),
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    )
+});
 
 pub type TextureArrayMaterial = ExtendedMaterial<StandardMaterial, TextureArrayMaterialExt>;
 
@@ -53,7 +59,9 @@ pub fn build_texture_array(
     let mut data = Vec::new();
 
     for (index, (name, handle)) in textures_map.into_iter().enumerate() {
-        let image = image_assets.get(handle.id()).unwrap_or(&PLACEHOLDER_TEXTURE);
+        let image = image_assets
+            .get(handle.id())
+            .unwrap_or(&PLACEHOLDER_TEXTURE);
 
         let mut image = image.convert(TextureFormat::Rgba8UnormSrgb).unwrap();
         let _ = image.resize_in_place(Extent3d {
@@ -69,7 +77,7 @@ pub fn build_texture_array(
             let req_bytes = 4 * size.element_product() as usize;
             data.resize(data.len() + req_bytes, 0);
         }
-        
+
         index_map.insert(name, index);
     }
 

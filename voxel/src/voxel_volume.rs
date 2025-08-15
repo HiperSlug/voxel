@@ -1,17 +1,24 @@
 use bevy::prelude::*;
-use std::collections::{HashMap, HashSet};
+use dashmap::DashMap;
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 
-
+use crate::{
+    chunk::{Chunk, ChunkMap, ChunkPos},
+    voxel_viewer::VoxelViewer,
+};
 
 #[derive(Debug, Component, Default)]
 pub struct VoxelVolume {
-    chunks: HashMap<IVec3, Entity>,
+    chunks: Arc<ChunkMap>,
 }
 
 pub fn update_visible_chunks(
     mut commands: Commands,
     viewers: Query<(&VoxelViewer, &Transform)>,
-    volumes: Query<(Entity, &mut VoxelVolume, &Transform)>,
+    volumes: Query<(Entity, &VoxelVolume, &Transform)>,
 ) {
     for (entity, mut volume, volume_transform) in volumes {
         let chunks = &mut volume.chunks;
@@ -20,7 +27,7 @@ pub fn update_visible_chunks(
             .iter()
             .flat_map(|(viewer, transform)| {
                 let chunk_pos =
-                    global_pos_to_chunk_pos(transform.translation - volume_transform.translation);
+                    global_to_chunk(transform.translation - volume_transform.translation);
                 viewer.visible_positions(chunk_pos)
             })
             .collect::<HashSet<_>>();
@@ -38,6 +45,8 @@ pub fn update_visible_chunks(
                     .id();
 
                 commands.entity(entity).add_child(child_entity);
+
+                let a = RwLock::new(2);
 
                 chunks.insert(chunk_pos, child_entity);
             }
