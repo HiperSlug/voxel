@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["main", "math", "voxel"]
+members = [ "freelist","main", "math", "voxel"]
 
 [profile.dev]
 opt-level = 1
@@ -9,4 +9,4 @@ opt-level = 1
 opt-level = 3
 
 [workspace.dependencies]
-bevy = { git = "https://github.com/andriyDev/bevy.git", rev = "a97012440ce7068dc36941de64d71c4c15bf2c55" }
+bevy = "*"

@@ -2,7 +2,7 @@ use crossbeam::channel::{Receiver, Sender, unbounded};
 use rayon::ThreadPool;
 use std::{cell::RefCell, sync::Arc};
 
-use super::{Chunk, ChunkMap, Mesher, VoxelQuad, ChunkPos};
+use super::{Chunk, ChunkMap, ChunkPos, Mesher, VoxelQuad};
 
 #[derive(Debug)]
 pub struct ChannelThreadPool<T> {
@@ -42,7 +42,7 @@ impl ChannelThreadPool<MeshData> {
                 mesher.fast_mesh(&chunk.voxels, &chunk.opaque_mask, &chunk.transparent_mask);
 
                 let mesh_data = MeshData {
-                    quads: mesher.quads.clone(),
+                    quads: mesher.mesh.clone(),
                 };
 
                 let _ = tx.send(mesh_data).is_err();

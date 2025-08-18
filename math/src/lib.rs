@@ -129,6 +129,8 @@ impl SignedAxis {
     }
 }
 
+pub type Face = SignedAxis;
+
 #[derive(Debug, Clone, Copy)]
 pub enum AxisPermutation {
     XYZ,

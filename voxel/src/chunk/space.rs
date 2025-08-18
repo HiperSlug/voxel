@@ -24,13 +24,13 @@ impl From<IVec3> for ChunkPos {
 }
 
 impl ChunkPos {
-	#[inline]
-	pub fn as_world(&self) -> Vec3 {
-		self.as_vec3() * WORLD_CHUNK_LENGTH
-	}
+    #[inline]
+    pub fn as_world(&self) -> Vec3 {
+        self.as_vec3() * WORLD_CHUNK_LENGTH
+    }
 
-	#[inline]
-	pub fn from_world(world: Vec3) -> Self {
-		(world / WORLD_CHUNK_LENGTH).floor().as_ivec3().into()
-	}
+    #[inline]
+    pub fn from_world(world: Vec3) -> Self {
+        (world / WORLD_CHUNK_LENGTH).floor().as_ivec3().into()
+    }
 }

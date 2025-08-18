@@ -3,9 +3,9 @@ pub mod mesher;
 pub mod space;
 pub mod task;
 
-pub use space::*;
 pub use data::*;
 pub use mesher::*;
+pub use space::*;
 pub use task::*;
 
 use dashmap::DashMap;

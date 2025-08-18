@@ -1,15 +1,13 @@
-use math::{Axis, AxisPermutation, Sign, SignedAxis};
+use math::{Axis, AxisPermutation, Face, Sign, SignedAxis};
 use ndshape::ConstPow2Shape3u32;
-use std::{array, collections::BTreeSet, fmt::Debug};
+use std::{array, collections::BTreeSet};
 
 use crate::voxel::Voxel;
 
 use super::{
-    BITS, ChunkShape, PADDED_CHUNK_AREA, PADDED_CHUNK_LENGTH, PADDED_CHUNK_VOLUME, X_SHIFT,
-    X_STRIDE, Y_SHIFT, Y_STRIDE, Z_SHIFT, Z_STRIDE,
+    BITS, ChunkShape, PADDED_CHUNK_AREA, PADDED_CHUNK_LENGTH, PADDED_CHUNK_VOLUME, VoxelQuad,
+    X_SHIFT, X_STRIDE, Y_SHIFT, Y_STRIDE, Z_SHIFT, Z_STRIDE,
 };
-
-const LENGTH: usize = PADDED_CHUNK_LENGTH;
 
 type LayerShape = ConstPow2Shape3u32<BITS, BITS, 3>;
 
@@ -22,10 +20,8 @@ const LAYER_Z_STRIDE: usize = 1 << LAYER_Z_SHIFT;
 
 const UNPADDED_MASK: u64 = 0x7FFF_FFFF_FFFF_FFFE;
 
-const MASK_6: u64 = 0x3F;
-
 pub struct Mesher {
-    pub quads: [Vec<VoxelQuad>; 6],
+    pub mesh: [Vec<VoxelQuad>; 6],
     face_masks: Box<[u64; PADDED_CHUNK_AREA * 6]>,
     upward_merged: Box<[u8; PADDED_CHUNK_AREA]>,
     forward_merged: Box<[u8; PADDED_CHUNK_LENGTH]>,
@@ -34,7 +30,7 @@ pub struct Mesher {
 impl Mesher {
     pub fn new() -> Self {
         Self {
-            quads: array::from_fn(|_| Vec::new()),
+            mesh: array::from_fn(|_| Vec::new()),
             face_masks: Box::new([0; PADDED_CHUNK_AREA * 6]),
             forward_merged: Box::new([0; PADDED_CHUNK_LENGTH]),
             upward_merged: Box::new([0; PADDED_CHUNK_AREA]),
@@ -45,8 +41,8 @@ impl Mesher {
         self.face_masks.fill(0);
         self.forward_merged.fill(0);
         self.upward_merged.fill(0);
-        for vec in &mut self.quads {
-            vec.clear();
+        for face in self.mesh.iter_mut() {
+            face.clear();
         }
     }
 
@@ -55,23 +51,23 @@ impl Mesher {
         voxels: &[Voxel; PADDED_CHUNK_VOLUME],
         transparents: &BTreeSet<Voxel>, // TODO: FIGURE OUT BEST STRUCT FOR THIS
     ) {
-        for signed_axis in SignedAxis::ALL {
-            let layer_l_stride = signed_axis.as_usize() << LAYER_L_SHIFT;
+        for face in Face::ALL {
+            let layer_l_stride = face.as_usize() << LAYER_L_SHIFT;
 
-            for z in 1..(LENGTH - 1) {
+            for z in 1..(PADDED_CHUNK_LENGTH - 1) {
                 let z_stride = z << Z_SHIFT;
 
                 let layer_z_stride = z << LAYER_Z_SHIFT;
                 let layer_zl_stride = layer_z_stride + layer_l_stride;
 
-                for y in 1..(LENGTH - 1) {
+                for y in 1..(PADDED_CHUNK_LENGTH - 1) {
                     let y_stride = y << Y_SHIFT;
                     let yz_stride = z_stride + y_stride;
 
                     let layer_y_stride = y << LAYER_Y_SHIFT;
                     let layer_yzl_stride = layer_y_stride + layer_zl_stride;
 
-                    for x in 1..(LENGTH - 1) {
+                    for x in 1..(PADDED_CHUNK_LENGTH - 1) {
                         let x_stride = x << X_SHIFT;
                         let xyz_stride = yz_stride + x_stride;
 
@@ -80,7 +76,7 @@ impl Mesher {
                             continue;
                         }
 
-                        let neighbor_index = offset_stride(signed_axis, xyz_stride);
+                        let neighbor_index = offset_stride(face, xyz_stride);
                         let neighbor = voxels[neighbor_index];
 
                         self.face_masks[layer_yzl_stride] |=
@@ -97,18 +93,18 @@ impl Mesher {
         opaque_mask: &[u64; PADDED_CHUNK_AREA],
         transparent_mask: &[u64; PADDED_CHUNK_AREA],
     ) {
-        for signed_axis in SignedAxis::ALL {
-            let layer_l_stride = signed_axis.as_usize() << LAYER_L_SHIFT;
+        for face in Face::ALL {
+            let layer_l_stride = face.as_usize() << LAYER_L_SHIFT;
 
-            let (sign, axis) = signed_axis.split();
+            let (sign, axis) = face.split();
 
-            for z in 1..(LENGTH - 1) {
+            for z in 1..(PADDED_CHUNK_LENGTH - 1) {
                 let z_stride = z << Z_SHIFT;
 
                 let layer_z_stride = z << LAYER_Z_SHIFT;
                 let layer_zl_stride = layer_z_stride + layer_l_stride;
 
-                for y in 1..(LENGTH - 1) {
+                for y in 1..(PADDED_CHUNK_LENGTH - 1) {
                     let y_stride = y << Y_SHIFT;
                     let yz_stride = y_stride + z_stride;
 
@@ -158,7 +154,7 @@ impl Mesher {
 
                         let voxel = voxels[xyz_stride];
 
-                        let neighbor_index = offset_stride(signed_axis, xyz_stride);
+                        let neighbor_index = offset_stride(face, xyz_stride);
                         let neighbor = voxels[neighbor_index];
 
                         self.face_masks[layer_yzl_stride] |= ((voxel != neighbor) as u64) << x;
@@ -169,14 +165,14 @@ impl Mesher {
     }
 
     fn face_merging(&mut self, voxels: &[Voxel; PADDED_CHUNK_VOLUME]) {
-        for signed_axis in SignedAxis::ALL {
-            let permutation = AxisPermutation::even(signed_axis.abs());
+        for face in Face::ALL {
+            let permutation = AxisPermutation::even(face.abs());
             let sigificance_map = permutation.sigificance_map();
 
-            let axis_major_index = signed_axis.as_usize();
-            let layer_l_stride = axis_major_index << LAYER_L_SHIFT;
+            let face_index = face.as_usize();
+            let layer_l_stride = face_index << LAYER_L_SHIFT;
 
-            for z in 1..(LENGTH - 1) {
+            for z in 1..(PADDED_CHUNK_LENGTH - 1) {
                 let z_significance = sigificance_map[2];
                 let z_shift = ChunkShape::SHIFTS[z_significance];
                 let z_stride_length = 1usize << z_shift;
@@ -186,7 +182,7 @@ impl Mesher {
                 let layer_z_stride = z << LAYER_Z_SHIFT;
                 let layer_zl_stride = layer_l_stride + layer_z_stride;
 
-                for y in 1..(LENGTH - 1) {
+                for y in 1..(PADDED_CHUNK_LENGTH - 1) {
                     let y_significance = sigificance_map[1];
                     let y_shift = ChunkShape::SHIFTS[y_significance];
                     let y_stride_length = 1usize << y_shift;
@@ -198,14 +194,14 @@ impl Mesher {
                     let layer_yzl_stride = layer_zl_stride + layer_y_stride;
 
                     use SignedAxis::*;
-                    match signed_axis {
+                    match face {
                         PosY | NegY | PosZ | NegZ => {
                             let mut column = self.face_masks[layer_yzl_stride];
                             if column == 0 {
                                 continue;
                             }
 
-                            let upward_column = if (y + 1) < (LENGTH - 1) {
+                            let upward_column = if (y + 1) < (PADDED_CHUNK_LENGTH - 1) {
                                 self.face_masks[layer_yzl_stride + LAYER_Y_STRIDE]
                             } else {
                                 0
@@ -229,7 +225,7 @@ impl Mesher {
                                     continue;
                                 }
 
-                                for forward in (x + 1)..(LENGTH - 1) {
+                                for forward in (x + 1)..(PADDED_CHUNK_LENGTH - 1) {
                                     if (column >> forward) & 1 == 0
                                         || self.forward_merged[x] != self.forward_merged[forward]
                                         || voxel != voxels[xyz_stride + z_stride_length]
@@ -245,20 +241,20 @@ impl Mesher {
                                     std::mem::take(&mut self.upward_merged[x]) as usize;
                                 forward_merged = 1;
 
-                                let quad_y = y as u64 - 1 - upward_merged as u64;
-                                let quad_x = x as u64 - 1;
-                                let quad_z = z as u64 - 1 + signed_axis.is_positive() as u64;
-                                let quad_w = forward_merged as u64;
-                                let quad_h = upward_merged as u64 + 1;
+                                let quad_y = y as u32 - 1 - upward_merged as u32;
+                                let quad_x = x as u32 - 1;
+                                let quad_z = z as u32 - 1 + face.is_positive() as u32;
+                                let quad_w = forward_merged as u32;
+                                let quad_h = upward_merged as u32 + 1;
 
-                                let quad = match signed_axis {
+                                let quad = match face {
                                     PosY => VoxelQuad::new(
                                         quad_x,
                                         quad_y,
                                         quad_z,
                                         quad_w,
                                         quad_h,
-                                        voxel.id as u64,
+                                        voxel.id as u32,
                                     ),
                                     NegY => VoxelQuad::new(
                                         quad_x,
@@ -266,7 +262,7 @@ impl Mesher {
                                         quad_z,
                                         quad_w,
                                         quad_h,
-                                        voxel.id as u64,
+                                        voxel.id as u32,
                                     ),
                                     PosZ => VoxelQuad::new(
                                         quad_y + quad_h,
@@ -274,7 +270,7 @@ impl Mesher {
                                         quad_z,
                                         quad_w,
                                         quad_h,
-                                        voxel.id as u64,
+                                        voxel.id as u32,
                                     ),
                                     NegZ => VoxelQuad::new(
                                         quad_y,
@@ -282,12 +278,12 @@ impl Mesher {
                                         quad_z,
                                         quad_w,
                                         quad_h,
-                                        voxel.id as u64,
+                                        voxel.id as u32,
                                     ),
                                     _ => unreachable!(),
                                 };
 
-                                self.quads[axis_major_index].push(quad);
+                                self.mesh[face_index].push(quad);
                             }
                         }
                         PosX | NegX => {
@@ -296,13 +292,13 @@ impl Mesher {
                                 continue;
                             }
 
-                            let upward_column = if (y + 1) < (LENGTH - 1) {
+                            let upward_column = if (y + 1) < (PADDED_CHUNK_LENGTH - 1) {
                                 self.face_masks[layer_yzl_stride + LAYER_Y_STRIDE]
                             } else {
                                 0
                             };
 
-                            let forward_column = if (z + 1) < (LENGTH - 1) {
+                            let forward_column = if (z + 1) < (PADDED_CHUNK_LENGTH - 1) {
                                 self.face_masks[layer_yzl_stride + LAYER_Z_STRIDE]
                             } else {
                                 0
@@ -348,22 +344,22 @@ impl Mesher {
                                 let upward_merged =
                                     std::mem::take(&mut self.upward_merged[forward_xy_stride]);
 
-                                let quad_y = y as u64 - 1 - upward_merged as u64;
-                                let quad_x = x as u64 - 1;
-                                let quad_z = z as u64 - 1 + signed_axis.is_positive() as u64;
-                                let quad_w = *forward_merged as u64;
-                                let quad_h = upward_merged as u64 + 1;
+                                let quad_y = y as u32 - 1 - upward_merged as u32;
+                                let quad_x = x as u32 - 1;
+                                let quad_z = z as u32 - 1 + face.is_positive() as u32;
+                                let quad_w = *forward_merged as u32;
+                                let quad_h = upward_merged as u32 + 1;
 
                                 let quad = VoxelQuad::new(
-                                    quad_x + if let PosX = signed_axis { quad_w } else { 0 },
+                                    quad_x + if let PosX = face { quad_w } else { 0 },
                                     quad_y,
                                     quad_z,
                                     quad_w,
                                     quad_h,
-                                    voxel.id as u64,
+                                    voxel.id as u32,
                                 );
 
-                                self.quads[axis_major_index].push(quad);
+                                self.mesh[face_index].push(quad);
                             }
                         }
                     }
@@ -398,55 +394,7 @@ fn is_visible_as_u64(voxel: Voxel, neighbor: Voxel, transparents: &BTreeSet<Voxe
     is_visible(voxel, neighbor, transparents) as u64
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct VoxelQuad(u64);
-
-impl VoxelQuad {
-    pub const fn new(x: u64, y: u64, z: u64, w: u64, h: u64, voxel: u64) -> Self {
-        Self(voxel << 32 | h << 24 | w << 18 | z << 12 | y << 6 | x)
-    }
-
-    pub const fn x(&self) -> u64 {
-        self.0 & MASK_6
-    }
-
-    pub const fn y(&self) -> u64 {
-        (self.0 >> 6) & MASK_6
-    }
-
-    pub const fn z(&self) -> u64 {
-        (self.0 >> 12) & MASK_6
-    }
-
-    pub const fn w(&self) -> u64 {
-        (self.0 >> 18) & MASK_6
-    }
-
-    pub const fn h(&self) -> u64 {
-        (self.0 >> 24) & MASK_6
-    }
-
-    pub const fn voxel(&self) -> u64 {
-        self.0 >> 32
-    }
-}
-
-impl Debug for VoxelQuad {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "VoxelQuad {{ x: {}, y: {}, z: {}, w: {}, h: {}, voxel: {} }}",
-            self.x(),
-            self.y(),
-            self.z(),
-            self.w(),
-            self.h(),
-            self.voxel()
-        )
-    }
-}
-
-fn offset_stride(axis: SignedAxis, base: usize) -> usize {
+fn offset_stride(axis: Face, base: usize) -> usize {
     let (sign, axis) = axis.split();
     let unsigned_stride = match axis {
         Axis::X => X_STRIDE,
@@ -522,7 +470,7 @@ mod tests {
         let opaque_mask = compute_opaque_mask(&voxels, &BTreeSet::new());
         let trans_mask = Box::new([0; PADDED_CHUNK_AREA]);
         mesher.fast_mesh(&voxels, &opaque_mask, &trans_mask);
-        for (i, quads) in mesher.quads.iter().enumerate() {
+        for (i, quads) in mesher.mesh.iter().enumerate() {
             println!("--- Face {i} ---");
             for &quad in quads {
                 println!("{quad:?}");
@@ -540,7 +488,7 @@ mod tests {
         mesher1.mesh(&voxels, &transparent_blocks);
         let mut mesher2 = Mesher::new();
         mesher2.fast_mesh(&voxels, &opaque_mask, &trans_mask);
-        assert_eq!(mesher1.quads, mesher2.quads);
+        assert_eq!(mesher1.mesh, mesher2.mesh);
     }
 
     fn test_buffer() -> Box<[Voxel; PADDED_CHUNK_VOLUME]> {

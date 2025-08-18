@@ -22,7 +22,7 @@ pub fn temp(chunk_pos: IVec3) -> Chunk {
         let y_cutoff =
             (NOISE.get_noise_2d(global_position.x as f32, global_position.z as f32) * 100.0) as i64;
         if global_position.y > y_cutoff {
-            Voxel { id: u16::MAX }
+            Voxel::default()
         } else {
             Voxel { id: 0 }
         }

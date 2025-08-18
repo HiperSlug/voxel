@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use dashmap::DashMap;
+
 use std::{
     collections::HashSet,
     sync::{Arc, RwLock},
@@ -12,34 +12,32 @@ use crate::{
 
 #[derive(Debug, Component, Default)]
 pub struct VoxelVolume {
-    chunks: Arc<ChunkMap>,
+    chunk_map: Arc<ChunkMap>,
 }
 
-pub fn update_visible_chunks(
+pub fn visible_chunks(
     mut commands: Commands,
     viewers: Query<(&VoxelViewer, &Transform)>,
-    volumes: Query<(Entity, &VoxelVolume, &Transform)>,
+    volumes: Query<(&VoxelVolume, &Transform)>,
 ) {
-    for (entity, mut volume, volume_transform) in volumes {
-        let chunks = &mut volume.chunks;
+    for (volume, volume_transform) in volumes {
+        let chunk_map = &volume.chunk_map;
 
         let visible_chunks = viewers
             .iter()
             .flat_map(|(viewer, transform)| {
-                let chunk_pos =
-                    global_to_chunk(transform.translation - volume_transform.translation);
+                let chunk_pos = (transform.translation - volume_transform.translation).into();
                 viewer.visible_positions(chunk_pos)
             })
             .collect::<HashSet<_>>();
 
         for chunk_pos in &visible_chunks {
-            if !chunks.contains_key(chunk_pos) {
+            if !chunk_map.contains_key(chunk_pos) {
                 let chunk_pos = *chunk_pos;
 
                 let child_entity = commands
                     .spawn((
-                        ChunkFlag,
-                        Transform::from_translation(chunk_pos_to_global_pos(chunk_pos)),
+                        Transform::from_translation(chunk_pos.as_world()),
                         ChunkConstructorTask::new(move || generator::temp(chunk_pos)),
                     ))
                     .id();
