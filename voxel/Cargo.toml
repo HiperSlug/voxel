@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-math = { path = "../math" }
-anyhow = "1.0.98"
 bevy = { workspace = true }
+math = { path = "../math" }
+freelist = { path = "../freelist" }
+anyhow = "1.0.98"
 fastnoise-lite = "1.1.1"
 ndshape = "0.3.0"
 rand = "0.9.2"

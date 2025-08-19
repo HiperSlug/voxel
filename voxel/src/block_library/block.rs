@@ -1,5 +1,5 @@
 use bevy::{math::bounding::Aabb3d, prelude::*};
-use math::PerSignedAxis;
+use math::prelude::*;
 use std::collections::HashMap;
 
 use super::intermediate::IntermediateBlock;
@@ -24,11 +24,9 @@ impl Block {
             textures,
         } = intermediate.clone();
 
-        let opt_textures = textures.0.map(|k| texture_context.get(&k).copied());
-        if !opt_textures.iter().all(|opt| opt.is_some()) {
-            return None;
-        }
-        let textures = opt_textures.map(|opt| opt.unwrap()).into();
+        let textures = PerSignedAxis::try_from_fn(|s| {
+            texture_context.get(textures.get(s)).copied()
+        })?;
 
         Some(Self {
             display_name,

@@ -1,4 +1,4 @@
-use math::{Axis, AxisPermutation, Face, Sign, SignedAxis};
+use math::prelude::*;
 use ndshape::ConstPow2Shape3u32;
 use std::{array, collections::BTreeSet};
 
@@ -51,7 +51,7 @@ impl Mesher {
         voxels: &[Voxel; PADDED_CHUNK_VOLUME],
         transparents: &BTreeSet<Voxel>, // TODO: FIGURE OUT BEST STRUCT FOR THIS
     ) {
-        for face in Face::ALL {
+        for face in SignedAxis::ALL {
             let layer_l_stride = face.as_usize() << LAYER_L_SHIFT;
 
             for z in 1..(PADDED_CHUNK_LENGTH - 1) {
@@ -93,7 +93,7 @@ impl Mesher {
         opaque_mask: &[u64; PADDED_CHUNK_AREA],
         transparent_mask: &[u64; PADDED_CHUNK_AREA],
     ) {
-        for face in Face::ALL {
+        for face in SignedAxis::ALL {
             let layer_l_stride = face.as_usize() << LAYER_L_SHIFT;
 
             let (sign, axis) = face.split();
@@ -165,7 +165,7 @@ impl Mesher {
     }
 
     fn face_merging(&mut self, voxels: &[Voxel; PADDED_CHUNK_VOLUME]) {
-        for face in Face::ALL {
+        for face in SignedAxis::ALL {
             let permutation = AxisPermutation::even(face.abs());
             let sigificance_map = permutation.sigificance_map();
 
@@ -394,7 +394,7 @@ fn is_visible_as_u64(voxel: Voxel, neighbor: Voxel, transparents: &BTreeSet<Voxe
     is_visible(voxel, neighbor, transparents) as u64
 }
 
-fn offset_stride(axis: Face, base: usize) -> usize {
+fn offset_stride(axis: SignedAxis, base: usize) -> usize {
     let (sign, axis) = axis.split();
     let unsigned_stride = match axis {
         Axis::X => X_STRIDE,
@@ -471,7 +471,7 @@ mod tests {
         let trans_mask = Box::new([0; PADDED_CHUNK_AREA]);
         mesher.fast_mesh(&voxels, &opaque_mask, &trans_mask);
         for (i, quads) in mesher.mesh.iter().enumerate() {
-            println!("--- Face {i} ---");
+            println!("--- SignedAxis {i} ---");
             for &quad in quads {
                 println!("{quad:?}");
             }

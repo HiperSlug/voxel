@@ -1,9 +1,14 @@
-use std::{cell::RefCell, num::NonZeroUsize, rc::Rc};
+use std::{
+    cell::RefCell,
+    num::NonZeroUsize,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Slice {
     pub start: usize,
-    pub len: usize,
+    pub len: NonZeroUsize,
 }
 
 impl Slice {
@@ -24,15 +29,20 @@ impl Slice {
 
     #[inline]
     pub fn end(&self) -> usize {
-        self.start + self.len
+        self.start + self.len()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len.get()
     }
 }
 
 #[derive(Default)]
-pub struct InnerFreeList(Vec<Slice>);
+struct InnerFreeList(Vec<Slice>);
 
 impl InnerFreeList {
-    pub unsafe fn free(&mut self, slice: Slice) -> Result<(), ()> {
+    unsafe fn free(&mut self, slice: &Slice) -> Result<(), ()> {
         let index = self
             .0
             .binary_search_by_key(&slice.start, |s| s.start)
@@ -60,17 +70,20 @@ impl InnerFreeList {
             above.and_then(|b| slice.touches_end(b).then_some(b)),
         ) {
             (None, None) => {
-                self.0.insert(index, slice);
+                self.0.insert(index, *slice);
             }
             (Some(below), None) => {
-                below.len += slice.len;
+                let len = below.len() + slice.len();
+                below.len = len.try_into().unwrap();
             }
             (None, Some(above)) => {
-                above.len += slice.len;
-                above.start -= slice.len;
+                let len = above.len() + slice.len();
+                above.len = len.try_into().unwrap();
+                above.start -= slice.len();
             }
             (Some(below), Some(above)) => {
-                below.len += slice.len + above.len;
+                let len = slice.len() + above.len() + below.len();
+                below.len = len.try_into().unwrap();
                 self.0.remove(index);
             }
         }
@@ -78,19 +91,18 @@ impl InnerFreeList {
         Ok(())
     }
 
-    pub fn allocate(&mut self, len: NonZeroUsize) -> Option<Slice> {
-        let len = len.get();
-
+    fn allocate(&mut self, len: NonZeroUsize) -> Option<Slice> {
+        let _len = len.get();
         for i in 0..self.0.len() {
             let slice = &mut self.0[i];
-            if slice.len > len {
+            if slice.len() > _len {
                 let start = slice.start;
 
-                slice.start += len;
-                slice.len -= len;
+                slice.start += _len;
+                slice.len = (slice.len() - _len).try_into().unwrap();
 
                 return Some(Slice { start, len });
-            } else if slice.len == len {
+            } else if slice.len() == _len {
                 let slice = self.0.remove(i);
                 return Some(slice);
             }
@@ -106,7 +118,7 @@ impl FreeList {
     pub fn new(len: NonZeroUsize) -> Self {
         Self(Rc::new(RefCell::new(InnerFreeList(vec![Slice {
             start: 0,
-            len: len.get(),
+            len,
         }]))))
     }
 
@@ -133,7 +145,49 @@ impl Allocation {
 impl Drop for Allocation {
     fn drop(&mut self) {
         unsafe {
-            self.freelist.borrow_mut().free(self.slice).unwrap();
+            self.freelist.borrow_mut().free(&self.slice).unwrap();
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct AsyncFreeList(Arc<Mutex<InnerFreeList>>);
+
+impl AsyncFreeList {
+    pub fn new(len: NonZeroUsize) -> Self {
+        Self(Arc::new(Mutex::new(InnerFreeList(vec![Slice {
+            start: 0,
+            len,
+        }]))))
+    }
+
+    pub fn allocate(&self, len: NonZeroUsize) -> Option<AsyncAllocation> {
+        let mut guard = self.0.lock().unwrap();
+        let slice = guard.allocate(len)?;
+
+        Some(AsyncAllocation {
+            slice,
+            freelist: self.0.clone(),
+        })
+    }
+}
+
+pub struct AsyncAllocation {
+    slice: Slice,
+    freelist: Arc<Mutex<InnerFreeList>>,
+}
+
+impl AsyncAllocation {
+    pub fn slice(&self) -> &Slice {
+        &self.slice
+    }
+}
+
+impl Drop for AsyncAllocation {
+    fn drop(&mut self) {
+        let mut guard = self.freelist.lock().unwrap();
+        unsafe {
+            guard.free(&self.slice).unwrap();
         }
     }
 }

@@ -1,5 +1,5 @@
 use bevy::{asset::AssetLoader, math::bounding::Aabb3d, prelude::*};
-use math::PerSignedAxis;
+use math::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_slice as json_de;
 use std::collections::HashMap;
