@@ -1,9 +1,15 @@
+use enum_map::{Enum, EnumMap};
 use glam::IVec3;
+use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
 
+pub type SignedAxisMap<T> = EnumMap<SignedAxis, T>;
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Enum)]
+#[derive(Deserialize, Serialize)]
 pub enum SignedAxis {
     PosX = 0,
     NegX = 1,
@@ -14,16 +20,6 @@ pub enum SignedAxis {
 }
 
 impl SignedAxis {
-    #[inline]
-    pub const fn as_u8(&self) -> u8 {
-        (*self) as u8
-    }
-
-    #[inline]
-    pub const fn as_usize(&self) -> usize {
-        (*self) as usize
-    }
-
     pub const ALL: [SignedAxis; 6] = [
         SignedAxis::PosX,
         SignedAxis::NegX,
@@ -79,30 +75,7 @@ impl SignedAxis {
     }
 
     #[inline]
-    pub const fn is_positive(&self) -> bool {
-        (self.as_u8() & 1) == 0
-    }
-}
-
-pub type PerSignedAxis<T> = PerEnum<SignedAxis, T, 6>;
-
-impl TryFrom<usize> for SignedAxis {
-    type Error = ();
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        Ok(match value {
-            0 => PosX,
-            1 => NegX,
-            2 => PosY,
-            3 => NegY,
-            4 => PosZ,
-            5 => NegZ,
-            _ => return Err(()),
-        })
-    }
-}
-
-impl From<SignedAxis> for usize {
-    fn from(value: SignedAxis) -> Self {
-        value.as_usize()
+    pub fn is_positive(&self) -> bool {
+        ((*self as u8) & 1) == 0
     }
 }

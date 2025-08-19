@@ -120,7 +120,7 @@ pub struct IntermediateBlock {
     pub display_name: String,
     pub collision_aabbs: Vec<Aabb3d>,
     pub is_translucent: bool,
-    pub textures: PerSignedAxis<String>,
+    pub textures: SignedAxisMap<String>,
 }
 
 #[derive(Debug, Default)]

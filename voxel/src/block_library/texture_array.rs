@@ -64,7 +64,7 @@ pub fn build_texture_array(
             .unwrap_or(&PLACEHOLDER_TEXTURE);
 
         let mut image = image.convert(TextureFormat::Rgba8UnormSrgb).unwrap();
-        let _ = image.resize_in_place(Extent3d {
+        let _ = image.resize/* TODO: in_place */(Extent3d {
             width: size.x,
             height: size.y,
             depth_or_array_layers: 1,

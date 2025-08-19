@@ -1,9 +1,13 @@
+use enum_map::Enum;
 use glam::UVec3;
+use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
+#[derive(Enum)]
+#[derive(Deserialize, Serialize)]
 pub enum Axis {
     X = 0,
     Y = 1,
@@ -11,14 +15,6 @@ pub enum Axis {
 }
 
 impl Axis {
-    pub const fn as_u8(&self) -> u8 {
-        (*self) as u8
-    }
-
-    pub const fn as_usize(&self) -> usize {
-        (*self) as usize
-    }
-
     pub const fn as_uvec3(&self) -> UVec3 {
         match self {
             X => UVec3::new(1, 0, 0),

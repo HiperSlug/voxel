@@ -9,7 +9,7 @@ pub struct Block {
     pub display_name: String,
     pub collision_aabbs: Vec<Aabb3d>,
     pub is_translucent: bool,
-    pub textures: PerSignedAxis<usize>,
+    pub textures: SignedAxisMap<usize>,
 }
 
 impl Block {
@@ -24,9 +24,16 @@ impl Block {
             textures,
         } = intermediate.clone();
 
-        let textures = PerSignedAxis::try_from_fn(|s| {
-            texture_context.get(textures.get(s)).copied()
-        })?;
+        let textures = SignedAxisMap::from_fn(|s| {
+            let name = &textures.as_array()[s.into_usize()];
+            texture_context.get(name)
+        });
+
+        if textures.iter().any(|(_, opt)| opt.is_none()) {
+            return None
+        }
+
+        let textures = textures.map(|_, opt| *opt.unwrap());
 
         Some(Self {
             display_name,

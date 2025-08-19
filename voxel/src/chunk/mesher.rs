@@ -52,7 +52,7 @@ impl Mesher {
         transparents: &BTreeSet<Voxel>, // TODO: FIGURE OUT BEST STRUCT FOR THIS
     ) {
         for face in SignedAxis::ALL {
-            let layer_l_stride = face.as_usize() << LAYER_L_SHIFT;
+            let layer_l_stride = face.into_usize() << LAYER_L_SHIFT;
 
             for z in 1..(PADDED_CHUNK_LENGTH - 1) {
                 let z_stride = z << Z_SHIFT;
@@ -94,7 +94,7 @@ impl Mesher {
         transparent_mask: &[u64; PADDED_CHUNK_AREA],
     ) {
         for face in SignedAxis::ALL {
-            let layer_l_stride = face.as_usize() << LAYER_L_SHIFT;
+            let layer_l_stride = face.into_usize() << LAYER_L_SHIFT;
 
             let (sign, axis) = face.split();
 
@@ -169,7 +169,7 @@ impl Mesher {
             let permutation = AxisPermutation::even(face.abs());
             let sigificance_map = permutation.sigificance_map();
 
-            let face_index = face.as_usize();
+            let face_index = face.into_usize();
             let layer_l_stride = face_index << LAYER_L_SHIFT;
 
             for z in 1..(PADDED_CHUNK_LENGTH - 1) {

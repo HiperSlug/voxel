@@ -1,8 +1,15 @@
+use enum_map::Enum;
+use serde::{Deserialize, Serialize};
+
 use crate::prelude::*;
 
 use AxisPermutation::*;
 
+pub type SignificanceMap = [usize; 3];
+
 #[derive(Debug, Clone, Copy)]
+#[derive(Enum)]
+#[derive(Deserialize, Serialize)]
 pub enum AxisPermutation {
     XYZ,
     YZX,
@@ -32,7 +39,7 @@ impl AxisPermutation {
     }
 
     #[inline]
-    pub const fn sigificance_map(&self) -> [usize; 3] {
+    pub fn sigificance_map(&self) -> [usize; 3] {
         match self {
             XYZ => [0, 1, 2],
             YZX => [2, 0, 1],
@@ -44,7 +51,7 @@ impl AxisPermutation {
     }
 
     #[inline]
-    pub const fn significance(&self, axis: Axis) -> usize {
-        self.sigificance_map()[axis.as_usize()]
+    pub fn significance(&self, axis: Axis) -> usize {
+        self.sigificance_map()[axis.into_usize()]
     }
 }
