@@ -1,11 +1,13 @@
 use crate::{
-    chunk::{CHUNK_SHAPE, Chunk, WORLD_CHUNK_LENGTH},
+    chunk::{
+        CHUNK_SHAPE, Chunk, WORLD_CHUNK_LENGTH, compute_opaque_mask, compute_transparent_mask,
+    },
     voxel::Voxel,
 };
 use bevy::math::{I64Vec3, IVec3};
 use fastnoise_lite::{self, FastNoiseLite};
 use ndshape::Shape;
-use std::{array, sync::LazyLock, u16};
+use std::{array, collections::BTreeSet, sync::LazyLock, u16};
 
 pub fn chunk_pos_to_voxel_pos(chunk_pos: IVec3) -> I64Vec3 {
     chunk_pos.as_i64vec3() * WORLD_CHUNK_LENGTH as i64
@@ -16,7 +18,7 @@ static NOISE: LazyLock<FastNoiseLite> = LazyLock::new(|| FastNoiseLite::default(
 pub fn temp(chunk_pos: IVec3) -> Chunk {
     let voxel_pos = chunk_pos_to_voxel_pos(chunk_pos);
 
-    let c: Chunk = Chunk::new(array::from_fn(|i| {
+    let voxels = array::from_fn(|i| {
         let global_position =
             I64Vec3::from(CHUNK_SHAPE.delinearize(i as u32).map(|c| c as i64)) + voxel_pos;
         let y_cutoff =
@@ -26,6 +28,14 @@ pub fn temp(chunk_pos: IVec3) -> Chunk {
         } else {
             Voxel { id: 0 }
         }
-    }));
-    c
+    });
+
+    let opaque_mask = compute_opaque_mask(&voxels, &BTreeSet::new());
+    let transparent_mask = compute_transparent_mask(&voxels, &BTreeSet::new());
+
+    Chunk {
+        voxels,
+        opaque_mask,
+        transparent_mask,
+    }
 }

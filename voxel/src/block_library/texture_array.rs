@@ -59,9 +59,7 @@ pub fn build_texture_array(
     let mut data = Vec::new();
 
     for (index, (name, handle)) in textures_map.into_iter().enumerate() {
-        let image = image_assets
-            .get(handle.id())
-            .unwrap_or(&PLACEHOLDER_TEXTURE);
+        let image = image_assets.get(&handle).unwrap();
 
         let mut image = image.convert(TextureFormat::Rgba8UnormSrgb).unwrap();
         let _ = image.resize/* TODO: in_place */(Extent3d {

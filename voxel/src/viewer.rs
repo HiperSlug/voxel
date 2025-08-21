@@ -3,11 +3,11 @@ use bevy::prelude::*;
 use crate::chunk::ChunkPos;
 
 #[derive(Debug, Component)]
-pub struct VoxelViewer {
+pub struct Viewer {
     pub radius: i32,
 }
 
-impl VoxelViewer {
+impl Viewer {
     pub fn new(radius: i32) -> Self {
         Self { radius }
     }

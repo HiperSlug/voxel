@@ -1,13 +1,16 @@
 use bevy::{
     prelude::*,
     render::{
-        render_resource::{Buffer, BufferDescriptor, BufferUsages},
+        render_resource::{Buffer, BufferDescriptor, BufferInitDescriptor, BufferUsages},
         renderer::{RenderDevice, RenderQueue},
     },
 };
 use bytemuck::{Pod, checked::cast_slice};
 use freelist::{Allocation, FreeList};
+use math::signed_axis::SignedAxisMap;
 use std::{marker::PhantomData, num::NonZeroUsize};
+
+use crate::chunk::VoxelQuad;
 
 pub struct AllocatedStorageBuffer<T> {
     buffer: Buffer,
@@ -36,7 +39,12 @@ where
         }
     }
 
-    pub fn write(&self, queue: &RenderQueue, data: &[T]) -> Option<BufferAllocation> {
+    pub fn write(
+        &mut self,
+        device: &RenderDevice,
+        queue: &RenderQueue,
+        data: &[T],
+    ) -> Option<BufferAllocation<T>> {
         let len = data.len().try_into().expect("cannot write zero data");
         let allocation = self.freelist.allocate(len)?;
 
@@ -45,16 +53,14 @@ where
             .try_into()
             .unwrap();
 
-        let mut view = queue
-            .write_buffer_with(&self.buffer, offset, size)
-            .expect("already resolved size");
+        let mut view = queue.write_buffer_with(&self.buffer, offset, size).unwrap();
         view.copy_from_slice(cast_slice(data));
 
-        Some(BufferAllocation(allocation))
+        Some(BufferAllocation(allocation, PhantomData))
     }
 }
 
-#[derive(Deref)]
-pub struct BufferAllocation(Allocation);
+#[derive(Debug, Deref)]
+pub struct BufferAllocation<T>(#[deref] pub Allocation, PhantomData<T>);
 
-pub struct ChunkMesh([Option<BufferAllocation>; 6]);
+pub struct ChunkMesh(pub SignedAxisMap<Option<BufferAllocation<VoxelQuad>>>);

@@ -1,67 +1,73 @@
-use std::{
-    cell::RefCell,
-    num::NonZeroUsize,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+pub mod slice;
+pub mod oom;
+pub mod search;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Slice {
-    pub start: usize,
-    pub len: NonZeroUsize,
+pub use slice::*;
+pub use oom::*;
+pub use search::*;
+
+use std::num::NonZeroUsize;
+
+#[derive(Default, Debug)]
+pub struct FreeList {
+    slices: Vec<Slice>,
+    tail: usize,
 }
 
-impl Slice {
-    #[inline]
-    fn touches_start(&self, other: &Self) -> bool {
-        self.start == other.end()
+impl FreeList {
+    pub fn new(len: NonZeroUsize) -> Self {
+        Self {
+            slices: vec![Slice { start: 0, len }],
+            tail: len.get(),
+        }
     }
 
-    #[inline]
-    fn touches_end(&self, other: &Self) -> bool {
-        self.end() == other.start
+    pub fn with_internal_capacity(len: NonZeroUsize, capacity: usize) -> Self {
+        let mut slices = Vec::with_capacity(capacity);
+        slices.push(Slice { start: 0, len });
+
+        Self {
+            slices,
+            tail: len.get(),
+        }
     }
 
-    #[inline]
-    fn overlaps(&self, other: &Self) -> bool {
-        self.end() > other.start && self.start < other.end()
+    pub fn tail(&self) -> usize {
+        self.tail
     }
 
-    #[inline]
-    pub fn end(&self) -> usize {
-        self.start + self.len()
+    pub unsafe fn tail_mut(&mut self) -> &mut usize {
+        &mut self.tail
     }
 
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.len.get()
+    pub fn slices(&self) -> &Vec<Slice> {
+        &self.slices
     }
-}
 
-#[derive(Default)]
-struct InnerFreeList(Vec<Slice>);
+    pub unsafe fn slices_mut(&mut self) -> &mut Vec<Slice> {
+        &mut self.slices
+    }
 
-impl InnerFreeList {
-    unsafe fn free(&mut self, slice: &Slice) -> Result<(), ()> {
+    pub unsafe fn dealloc(&mut self, slice: &Slice) -> Result<(), AlreadyFree> {
         let index = self
-            .0
+            .slices
             .binary_search_by_key(&slice.start, |s| s.start)
             .err()
-            .ok_or(())?;
+            .ok_or(AlreadyFree)?;
 
-        let (lower, upper) = self.0.split_at_mut(index);
+        let (lower, upper) = self.slices.split_at_mut(index);
         let below = lower.last_mut();
         let above = upper.first_mut();
 
         if let Some(below) = &below {
             if slice.overlaps(below) {
-                return Err(());
+                return Err(AlreadyFree);
             }
         }
 
         if let Some(above) = &above {
             if slice.overlaps(above) {
-                return Err(());
+                return Err(AlreadyFree);
             }
         }
 
@@ -70,7 +76,7 @@ impl InnerFreeList {
             above.and_then(|b| slice.touches_end(b).then_some(b)),
         ) {
             (None, None) => {
-                self.0.insert(index, *slice);
+                self.slices.insert(index, *slice);
             }
             (Some(below), None) => {
                 let len = below.len() + slice.len();
@@ -84,110 +90,29 @@ impl InnerFreeList {
             (Some(below), Some(above)) => {
                 let len = slice.len() + above.len() + below.len();
                 below.len = len.try_into().unwrap();
-                self.0.remove(index);
+                self.slices.remove(index);
             }
+        }
+
+        if slice.end() > self.tail {
+            self.tail = slice.end()
         }
 
         Ok(())
     }
 
-    fn allocate(&mut self, len: NonZeroUsize) -> Option<Slice> {
-        let _len = len.get();
-        for i in 0..self.0.len() {
-            let slice = &mut self.0[i];
-            if slice.len() > _len {
-                let start = slice.start;
+    pub fn alloc<Oom, Sch>(&mut self, len: NonZeroUsize) -> Result<Slice, Oom::Output>
+    where
+        Oom: OomStrategy,
+        Sch: SearchStrategy,
+    {
+        Sch::try_extract(self, len).ok_or(Oom::strategy(self, len))
+    }
 
-                slice.start += _len;
-                slice.len = (slice.len() - _len).try_into().unwrap();
-
-                return Some(Slice { start, len });
-            } else if slice.len() == _len {
-                let slice = self.0.remove(i);
-                return Some(slice);
-            }
-        }
-        None
+    pub fn try_alloc(&mut self, len: NonZeroUsize) -> Option<Slice> {
+        self.alloc::<DefaultOomStrategy, FirstFit>(len).ok()
     }
 }
 
-#[derive(Default)]
-pub struct FreeList(Rc<RefCell<InnerFreeList>>);
-
-impl FreeList {
-    pub fn new(len: NonZeroUsize) -> Self {
-        Self(Rc::new(RefCell::new(InnerFreeList(vec![Slice {
-            start: 0,
-            len,
-        }]))))
-    }
-
-    pub fn allocate(&self, len: NonZeroUsize) -> Option<Allocation> {
-        let slice = self.0.borrow_mut().allocate(len)?;
-        Some(Allocation {
-            slice,
-            freelist: self.0.clone(),
-        })
-    }
-}
-
-pub struct Allocation {
-    slice: Slice,
-    freelist: Rc<RefCell<InnerFreeList>>,
-}
-
-impl Allocation {
-    pub fn slice(&self) -> &Slice {
-        &self.slice
-    }
-}
-
-impl Drop for Allocation {
-    fn drop(&mut self) {
-        unsafe {
-            self.freelist.borrow_mut().free(&self.slice).unwrap();
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct AsyncFreeList(Arc<Mutex<InnerFreeList>>);
-
-impl AsyncFreeList {
-    pub fn new(len: NonZeroUsize) -> Self {
-        Self(Arc::new(Mutex::new(InnerFreeList(vec![Slice {
-            start: 0,
-            len,
-        }]))))
-    }
-
-    pub fn allocate(&self, len: NonZeroUsize) -> Option<AsyncAllocation> {
-        let mut guard = self.0.lock().unwrap();
-        let slice = guard.allocate(len)?;
-
-        Some(AsyncAllocation {
-            slice,
-            freelist: self.0.clone(),
-        })
-    }
-}
-
-pub struct AsyncAllocation {
-    slice: Slice,
-    freelist: Arc<Mutex<InnerFreeList>>,
-}
-
-impl AsyncAllocation {
-    pub fn slice(&self) -> &Slice {
-        &self.slice
-    }
-}
-
-impl Drop for AsyncAllocation {
-    fn drop(&mut self) {
-        let mut guard = self.freelist.lock().unwrap();
-        unsafe {
-            guard.free(&self.slice).unwrap();
-        }
-    }
-}
+#[derive(Debug)]
+pub struct AlreadyFree;

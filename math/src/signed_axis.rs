@@ -7,9 +7,7 @@ use crate::prelude::*;
 pub type SignedAxisMap<T> = EnumMap<SignedAxis, T>;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Enum)]
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Enum, Deserialize, Serialize)]
 pub enum SignedAxis {
     PosX = 0,
     NegX = 1,

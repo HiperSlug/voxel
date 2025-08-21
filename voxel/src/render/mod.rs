@@ -1,17 +1,15 @@
-mod buffer;
+pub mod buffer;
 
 use bevy::{
     ecs::{query::ROQueryItem, system::SystemParamItem},
     prelude::*,
     render::{
-        RenderApp,
         render_phase::{
             PhaseItem, RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass,
         },
-        render_resource::{Buffer, s},
+        render_resource::Buffer,
     },
 };
-use bytemuck::{Pod, Zeroable};
 
 const SHADER_PATH: &str = "shaders/chunk.wgsl";
 
@@ -59,14 +57,14 @@ impl<P: PhaseItem> RenderCommand<P> for DrawQuads {
 
 type DrawQuadsCommands = (SetItemPipeline, DrawQuads);
 
-struct QuadsPipeline {
-    variants: Vari,
-}
+// struct QuadsPipeline {
+//     variants: Vari,
+// }
 
 struct QuadPlugin;
 
 impl Plugin for QuadPlugin {
     fn build(&self, app: &mut App) {
-        app.sub_app_mut(RenderApp).init_resource();
+        // app.sub_app_mut(RenderApp).init_resource();
     }
 }

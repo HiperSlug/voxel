@@ -5,9 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::prelude::*;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
-#[derive(Enum)]
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Enum, Deserialize, Serialize)]
 pub enum Axis {
     X = 0,
     Y = 1,

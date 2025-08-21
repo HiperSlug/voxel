@@ -21,19 +21,19 @@ impl Block {
             display_name,
             collision_aabbs,
             is_translucent,
-            textures,
+            textures: texture_names,
         } = intermediate.clone();
 
-        let textures = SignedAxisMap::from_fn(|s| {
-            let name = &textures.as_array()[s.into_usize()];
+        let opt_textures = SignedAxisMap::from_fn(|s| {
+            let name = &texture_names.as_array()[s.into_usize()];
             texture_context.get(name)
         });
 
-        if textures.iter().any(|(_, opt)| opt.is_none()) {
-            return None
+        if opt_textures.iter().any(|(_, opt)| opt.is_none()) {
+            return None;
         }
 
-        let textures = textures.map(|_, opt| *opt.unwrap());
+        let textures = opt_textures.map(|_, opt| *opt.unwrap());
 
         Some(Self {
             display_name,

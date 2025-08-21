@@ -7,9 +7,7 @@ use AxisPermutation::*;
 
 pub type SignificanceMap = [usize; 3];
 
-#[derive(Debug, Clone, Copy)]
-#[derive(Enum)]
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Enum, Deserialize, Serialize)]
 pub enum AxisPermutation {
     XYZ,
     YZX,

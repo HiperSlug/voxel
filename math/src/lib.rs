@@ -14,6 +14,6 @@ pub mod prelude {
     pub use crate::signed_axis::*;
 
     pub use crate::axis_permutation::*;
-    
+
     pub use enum_map::Enum;
 }

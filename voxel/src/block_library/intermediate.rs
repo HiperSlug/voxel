@@ -1,4 +1,9 @@
-use bevy::{asset::AssetLoader, math::bounding::Aabb3d, prelude::*};
+use bevy::{
+    asset::{AssetLoader, LoadContext, io::Reader},
+    math::bounding::Aabb3d,
+    prelude::*,
+    tasks::ConditionalSendFuture,
+};
 use math::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_slice as json_de;
@@ -31,11 +36,10 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
 
     fn load(
         &self,
-        reader: &mut dyn bevy::asset::io::Reader,
+        reader: &mut dyn Reader,
         _: &Self::Settings,
-        load_context: &mut bevy::asset::LoadContext,
-    ) -> impl bevy::tasks::ConditionalSendFuture<Output = std::result::Result<Self::Asset, Self::Error>>
-    {
+        load_context: &mut LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async move {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
@@ -43,13 +47,14 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
             let BlockLibraryConfig {
                 libraries,
                 texture_size,
-            } = json_de::<BlockLibraryConfig>(&bytes)?;
+            } = json_de(&bytes)?;
 
             let mut blocks = HashMap::new();
             let mut textures = HashMap::new();
 
             for library in libraries {
-                let blocks_path = format!("blocks_lib/{library}/blocks");
+                let blocks_path = format!("block_libs/{library}/blocks");
+
                 for result in WalkDir::new(&blocks_path)
                     .into_iter()
                     .filter_entry(|e| e.file_type().is_file())
@@ -77,7 +82,8 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
                     blocks.insert(name.to_string(), handle);
                 }
 
-                let textures_path = format!("blocks_lib/{library}/textures");
+                let textures_path = format!("block_libs/{library}/textures");
+
                 for result in WalkDir::new(&textures_path)
                     .into_iter()
                     .filter_entry(|e| e.file_type().is_file())

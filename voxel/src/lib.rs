@@ -4,10 +4,12 @@ mod voxel;
 
 mod generator;
 
-mod voxel_viewer;
+mod viewer;
 
 mod voxel_volume;
 
 mod block_library;
 
 mod render;
+
+mod terrain;

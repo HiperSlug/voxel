@@ -5,13 +5,13 @@ use std::{cell::RefCell, sync::Arc};
 use super::{Chunk, ChunkMap, ChunkPos, Mesher, VoxelQuad};
 
 #[derive(Debug)]
-pub struct ChannelThreadPool<T> {
+pub struct Background<T> {
     pool: ThreadPool,
-    pub tx: Sender<T>,
+    tx: Sender<T>,
     pub rx: Receiver<T>,
 }
 
-impl<T> From<ThreadPool> for ChannelThreadPool<T> {
+impl<T> From<ThreadPool> for Background<T> {
     fn from(pool: ThreadPool) -> Self {
         let (tx, rx) = unbounded();
         Self { pool, tx, rx }
@@ -27,7 +27,7 @@ pub struct MeshData {
     pub quads: [Vec<VoxelQuad>; 6],
 }
 
-impl ChannelThreadPool<MeshData> {
+impl Background<MeshData> {
     fn mesh(&self, chunk_map: &Arc<ChunkMap>, chunk_pos: ChunkPos) {
         let tx = self.tx.clone();
         let chunk_map = chunk_map.clone();
@@ -45,7 +45,7 @@ impl ChannelThreadPool<MeshData> {
                     quads: mesher.mesh.clone(),
                 };
 
-                let _ = tx.send(mesh_data).is_err();
+                tx.send(mesh_data);
             })
         });
     }

@@ -1,8 +1,9 @@
 use bevy::render::render_resource::ShaderType;
 use bytemuck::{Pod, Zeroable};
+use math::prelude::*;
 use std::fmt::Debug;
 
-use crate::voxel::Voxel;
+use crate::{render::buffer::BufferAllocation, voxel::Voxel};
 
 use super::{PADDED_CHUNK_AREA, PADDED_CHUNK_VOLUME};
 
@@ -72,12 +73,5 @@ impl Debug for VoxelQuad {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ChunkMesh {
-    /// The index at which each Face own the quads
-    ///
-    /// Skips Face::PosX which is implicitly 0
-    pub face_indices: [usize; 5],
-    /// Linear array of quads, meant to be copied to a shader storage
-    pub quads: Vec<VoxelQuad>,
-}
+#[derive(Debug)]
+pub struct ChunkMesh(pub SignedAxisMap<BufferAllocation<VoxelQuad>>);

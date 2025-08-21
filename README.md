@@ -1,0 +1,3 @@
+Im trying to setup a fast voxel engine based on this [video](https://www.youtube.com/watch?v=40JzyaOYJeY).
+
+In order to allow for drawing an entire voxel object with one draw command I need to be able to dynamically write to a storage buffer. Bevys built in types seem to only support writing an entire buffer, or just allocating a new one. I would like to understand how I can setup a storage buffer that I can write to using RenderQueue.write_buffer() inside bevys rendering pipeline. 

@@ -411,8 +411,8 @@ fn offset_stride(axis: SignedAxis, base: usize) -> usize {
 pub fn compute_opaque_mask(
     voxels: &[Voxel; PADDED_CHUNK_VOLUME],
     transparents: &BTreeSet<Voxel>,
-) -> Box<[u64; PADDED_CHUNK_AREA]> {
-    let mut opaque_mask = Box::new([0; PADDED_CHUNK_AREA]);
+) -> [u64; PADDED_CHUNK_AREA] {
+    let mut opaque_mask = [0; PADDED_CHUNK_AREA];
 
     for (i, voxel) in voxels.iter().enumerate() {
         if voxel.is_sentinel() || transparents.contains(voxel) {
@@ -431,8 +431,8 @@ pub fn compute_opaque_mask(
 pub fn compute_transparent_mask(
     voxels: &[Voxel; PADDED_CHUNK_VOLUME],
     transparents: &BTreeSet<Voxel>,
-) -> Box<[u64; PADDED_CHUNK_AREA]> {
-    let mut transparent_mask = Box::new([0; PADDED_CHUNK_AREA]);
+) -> [u64; PADDED_CHUNK_AREA] {
+    let mut transparent_mask = [0; PADDED_CHUNK_AREA];
 
     for (i, voxel) in voxels.iter().enumerate() {
         if voxel.is_sentinel() || !transparents.contains(voxel) {

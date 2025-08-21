@@ -2,9 +2,7 @@ use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 
 #[repr(i8)]
-#[derive(Debug, Clone, Copy)]
-#[derive(Enum)]
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Enum, Deserialize, Serialize)]
 pub enum Sign {
     Pos = 1,
     Neg = -1,
