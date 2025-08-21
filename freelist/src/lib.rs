@@ -80,17 +80,13 @@ impl FreeList {
                 self.slices.insert(index, *slice);
             }
             (Some(below), None) => {
-                let len = below.len() + slice.len();
-                below.len = len.try_into().unwrap();
+                below.set_end(slice.end()).unwrap();
             }
             (None, Some(above)) => {
-                let len = above.len() + slice.len();
-                above.len = len.try_into().unwrap();
-                above.start -= slice.len();
+                above.set_start(slice.start).unwrap();
             }
             (Some(below), Some(above)) => {
-                let len = slice.len() + above.len() + below.len();
-                below.len = len.try_into().unwrap();
+                below.set_end(above.end()).unwrap();
                 self.slices.remove(index);
             }
         }
@@ -118,7 +114,7 @@ impl FreeList {
         }
     }
 
-    pub fn extract_slice(&mut self, index: usize, len: NonZeroUsize) -> Result<Slice, ZeroLength> {
+    fn extract_slice(&mut self, index: usize, len: NonZeroUsize) -> Result<Slice, ZeroLength> {
         let slice = &mut self.slices[index];
         if slice.len() == len.get() {
             Ok(self.slices.remove(index))

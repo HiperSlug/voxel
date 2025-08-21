@@ -5,7 +5,7 @@ use bevy::{
         renderer::{RenderDevice, RenderQueue},
     },
 };
-use bytemuck::{checked::cast_slice, NoUninit, Pod};
+use bytemuck::{NoUninit, Pod, checked::cast_slice};
 use freelist::{FreeList, Slice, oom::OomStrategy, search::LastFit};
 use parking_lot::Mutex;
 use std::{marker::PhantomData, num::NonZeroUsize, sync::Arc};
@@ -89,7 +89,11 @@ where
         queue: &RenderQueue,
         data: [&[T]; N],
     ) -> Option<MultiBufferAllocation<T, N>> {
-        let flat_data = data.iter().flat_map(|s| s.iter()).copied().collect::<Vec<_>>();
+        let flat_data = data
+            .iter()
+            .flat_map(|s| s.iter())
+            .copied()
+            .collect::<Vec<_>>();
         let total_len = flat_data.len().try_into().ok()?;
 
         let mut guard = self.freelist.lock();
@@ -106,7 +110,9 @@ where
         };
 
         let offset = (cumulative.start * size_of::<T>()) as u64;
-        let size = ((cumulative.len() * size_of::<T>()) as u64).try_into().unwrap();
+        let size = ((cumulative.len() * size_of::<T>()) as u64)
+            .try_into()
+            .unwrap();
 
         let mut view = queue.write_buffer_with(&self.buffer, offset, size).unwrap();
         view.copy_from_slice(cast_slice(&flat_data));
@@ -206,17 +212,11 @@ pub struct MultiBufferAllocation<T, const N: usize> {
 impl<T, const N: usize> Drop for MultiBufferAllocation<T, N> {
     fn drop(&mut self) {
         let mut guard = self.freelist.lock();
-
         unsafe {
             guard.dealloc(&self.cumulative).unwrap();
         }
     }
 }
 
-pub struct ChunkMesh {
-    pub allocation: Option<MultiBufferAllocation<VoxelQuad, 6>>,
-}
-
-impl ChunkMesh {
-
-}
+// this should be somewhere else but its here for example purposes.
+pub struct ChunkMesh(Option<MultiBufferAllocation<VoxelQuad, 6>>);
