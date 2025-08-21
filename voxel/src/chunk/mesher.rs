@@ -21,6 +21,7 @@ const LAYER_Z_STRIDE: usize = 1 << LAYER_Z_SHIFT;
 const UNPADDED_MASK: u64 = 0x7FFF_FFFF_FFFF_FFFE;
 
 pub struct Mesher {
+    // TODO: use one continuous buffer with offset indices.
     pub mesh: [Vec<VoxelQuad>; 6],
     face_masks: Box<[u64; PADDED_CHUNK_AREA * 6]>,
     upward_merged: Box<[u8; PADDED_CHUNK_AREA]>,

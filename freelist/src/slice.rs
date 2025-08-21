@@ -67,11 +67,11 @@ impl Slice {
     pub fn split(&self, at: usize) -> (Option<Slice>, Option<Slice>) {
         assert!(at < self.len());
 
-        let global_at = self.start() + at;
+        let split_point = self.start() + at;
 
         (
-            Slice::try_from_range(self.start, global_at),
-            Slice::try_from_range(global_at, self.end()),
+            Slice::try_from_range(self.start, split_point),
+            Slice::try_from_range(split_point, self.end()),
         )
     }
 

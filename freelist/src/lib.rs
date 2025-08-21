@@ -9,7 +9,6 @@ use std::num::NonZeroUsize;
 use crate::{
     oom::{Noop, OomStrategy},
     search::{FirstFit, SearchStrategy},
-    slice::ZeroLength,
 };
 
 #[derive(Debug)]
@@ -114,14 +113,16 @@ impl FreeList {
         }
     }
 
-    fn extract_slice(&mut self, index: usize, len: NonZeroUsize) -> Result<Slice, ZeroLength> {
+    fn extract_slice(&mut self, index: usize, len: NonZeroUsize) -> Option<Slice> {
         let slice = &mut self.slices[index];
         if slice.len() == len.get() {
-            Ok(self.slices.remove(index))
+            Some(self.slices.remove(index))
         } else {
-            let start = slice.start;
-            slice.set_start(start + len.get())?;
-            Ok(Slice { start, len })
+            let (below_opt, above_opt) = slice.split(len.get());
+            let below = below_opt?;
+            let above = above_opt?;
+            *slice = above;
+            Some(below)
         }
     }
 

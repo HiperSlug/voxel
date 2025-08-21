@@ -5,27 +5,27 @@ use bevy::{
         renderer::{RenderDevice, RenderQueue},
     },
 };
-use bytemuck::{NoUninit, Pod, checked::cast_slice};
+use bytemuck::{Pod, checked::cast_slice};
 use freelist::{FreeList, Slice, oom::OomStrategy, search::LastFit};
 use parking_lot::Mutex;
 use std::{marker::PhantomData, num::NonZeroUsize, sync::Arc};
 
-use crate::chunk::VoxelQuad;
-
 pub struct AllocatedBuffer<T> {
-    label: Option<String>,
+    label: &'static str,
+    // We can only write when we know data is not being read
+    write_queue: Vec<T>,
+    
     buffer: Buffer,
     freelist: Arc<Mutex<FreeList>>,
-    _phantom: PhantomData<T>,
 }
 
 impl<T> AllocatedBuffer<T>
 where
-    T: Pod + NoUninit,
+    T: Pod,
 {
-    pub fn new(device: &RenderDevice, len: NonZeroUsize, label: Option<String>) -> Self {
+    pub fn new(device: &RenderDevice, len: NonZeroUsize, label: String) -> Self {
         let buffer = device.create_buffer(&BufferDescriptor {
-            label: label.as_ref().map(|s| s.as_str()),
+            label: Some(&label),
             size: (size_of::<T>() * len.get()) as u64,
             mapped_at_creation: false,
             usage: BufferUsages::COPY_SRC | BufferUsages::COPY_DST | BufferUsages::STORAGE,
@@ -83,6 +83,7 @@ where
         })
     }
 
+    // If instead I provide already contiguous data with precomputed indices it would cut down on cost.
     pub fn multi_write_contiguous<const N: usize>(
         &mut self,
         device: &RenderDevice,
@@ -217,6 +218,3 @@ impl<T, const N: usize> Drop for MultiBufferAllocation<T, N> {
         }
     }
 }
-
-// this should be somewhere else but its here for example purposes.
-pub struct ChunkMesh(Option<MultiBufferAllocation<VoxelQuad, 6>>);

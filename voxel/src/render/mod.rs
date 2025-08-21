@@ -13,15 +13,6 @@ use bevy::{
 
 const SHADER_PATH: &str = "shaders/chunk.wgsl";
 
-#[derive(Component)]
-struct QuadBuffers {
-    base: Buffer,
-    instances: Buffer,
-    indirect: Buffer,
-    offset: u64,
-    count: u32,
-}
-
 struct DrawQuads;
 
 impl<P: PhaseItem> RenderCommand<P> for DrawQuads {
