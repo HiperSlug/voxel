@@ -24,4 +24,4 @@ pub const X_STRIDE: usize = 1 << X_SHIFT;
 pub const Y_STRIDE: usize = 1 << Y_SHIFT;
 pub const Z_STRIDE: usize = 1 << Z_SHIFT;
 
-
+pub type ChunkMap = DashMap<ChunkPos, Chunk>;

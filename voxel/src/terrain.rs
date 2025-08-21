@@ -3,11 +3,9 @@ use dashmap::DashMap;
 use std::sync::Arc;
 
 use crate::{
-    chunk::{Chunk, ChunkPos},
+    chunk::{Chunk, ChunkMap, ChunkPos},
     viewer::Viewer,
 };
-
-pub type ChunkMap = DashMap<ChunkPos, Chunk>;
 
 #[derive(Component)]
 pub struct Terrain {

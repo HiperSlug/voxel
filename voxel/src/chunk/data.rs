@@ -1,6 +1,7 @@
 use bevy::render::render_resource::ShaderType;
 use bytemuck::{Pod, Zeroable};
-use math::prelude::*;
+use freelist::Slice;
+use math::{prelude::*, signed_axis};
 use std::fmt::Debug;
 
 use crate::{render::buffer::BufferAllocation, voxel::Voxel};
@@ -74,4 +75,13 @@ impl Debug for VoxelQuad {
 }
 
 #[derive(Debug)]
-pub struct ChunkMesh(pub SignedAxisMap<BufferAllocation<VoxelQuad>>);
+pub struct ChunkMesh {
+    pub allocation: BufferAllocation<VoxelQuad>,
+    pub offsets: SignedAxisMap<Option<usize>>,
+}
+
+impl ChunkMesh {
+    pub fn get_range(&self, signed_axis: SignedAxis) -> Option<(usize, usize)> {
+        self.off
+    }
+}

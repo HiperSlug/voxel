@@ -8,9 +8,9 @@ pub trait OomStrategy {
     fn strategy(freelist: &mut FreeList, failed_len: NonZeroUsize) -> Self::Output;
 }
 
-pub struct DefaultOomStrategy;
+pub struct Noop;
 
-impl OomStrategy for DefaultOomStrategy {
+impl OomStrategy for Noop {
     type Output = ();
 
     fn strategy(_: &mut FreeList, _: NonZeroUsize) -> Self::Output {

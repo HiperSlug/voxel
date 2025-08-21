@@ -50,11 +50,3 @@ impl Background<MeshData> {
         });
     }
 }
-
-impl ChannelThreadPool<Chunk> {
-    fn generate(&self, chunk_pos: ChunkPos) {
-        let tx = self.tx.clone();
-
-        todo!();
-    }
-}

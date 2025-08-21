@@ -20,6 +20,7 @@ crossbeam = "0.8.4"
 rayon = "1.11.0"
 bytemuck = "1.23.2"
 enum-map = { version = "2.7.3", features = ["serde"] }
+parking_lot = "0.12.4"
 
 [features]
 dynamic = ["bevy/dynamic_linking"]

@@ -1,57 +1,58 @@
-pub mod slice;
 pub mod oom;
 pub mod search;
+pub mod slice;
 
-pub use slice::*;
-pub use oom::*;
-pub use search::*;
+pub use slice::Slice;
 
 use std::num::NonZeroUsize;
 
-#[derive(Default, Debug)]
+use crate::{
+    oom::{Noop, OomStrategy},
+    search::{FirstFit, SearchStrategy},
+    slice::ZeroLength,
+};
+
+#[derive(Debug)]
 pub struct FreeList {
     slices: Vec<Slice>,
-    tail: usize,
+    extent: Slice,
 }
 
 impl FreeList {
-    pub fn new(len: NonZeroUsize) -> Self {
+    pub fn new(extent: Slice) -> Self {
         Self {
-            slices: vec![Slice { start: 0, len }],
-            tail: len.get(),
+            slices: vec![extent],
+            extent,
         }
     }
 
-    pub fn with_internal_capacity(len: NonZeroUsize, capacity: usize) -> Self {
+    pub fn with_internal_capacity(extent: Slice, capacity: usize) -> Self {
         let mut slices = Vec::with_capacity(capacity);
-        slices.push(Slice { start: 0, len });
+        slices.push(extent);
 
-        Self {
-            slices,
-            tail: len.get(),
-        }
+        Self { slices, extent }
     }
 
-    pub fn tail(&self) -> usize {
-        self.tail
+    pub fn extent(&self) -> &Slice {
+        &self.extent
     }
 
-    pub unsafe fn tail_mut(&mut self) -> &mut usize {
-        &mut self.tail
+    pub unsafe fn extent_mut(&mut self) -> &mut Slice {
+        &mut self.extent
     }
 
-    pub fn slices(&self) -> &Vec<Slice> {
+    pub fn slices(&self) -> &[Slice] {
         &self.slices
     }
 
-    pub unsafe fn slices_mut(&mut self) -> &mut Vec<Slice> {
+    pub unsafe fn ranges_mut(&mut self) -> &mut [Slice] {
         &mut self.slices
     }
 
     pub unsafe fn dealloc(&mut self, slice: &Slice) -> Result<(), AlreadyFree> {
         let index = self
             .slices
-            .binary_search_by_key(&slice.start, |s| s.start)
+            .binary_search_by_key(&slice.start(), Slice::start)
             .err()
             .ok_or(AlreadyFree)?;
 
@@ -72,8 +73,8 @@ impl FreeList {
         }
 
         match (
-            below.and_then(|b| slice.touches_start(b).then_some(b)),
-            above.and_then(|b| slice.touches_end(b).then_some(b)),
+            below.and_then(|b| slice.adjacent_below(b).then_some(b)),
+            above.and_then(|b| slice.adjacent_above(b).then_some(b)),
         ) {
             (None, None) => {
                 self.slices.insert(index, *slice);
@@ -94,23 +95,46 @@ impl FreeList {
             }
         }
 
-        if slice.end() > self.tail {
-            self.tail = slice.end()
+        if slice.end() > self.extent.end() {
+            self.extent.set_end(slice.end()).unwrap();
+        }
+        if slice.start < self.extent.start {
+            self.extent.set_start(slice.start).unwrap();
         }
 
         Ok(())
     }
 
-    pub fn alloc<Oom, Sch>(&mut self, len: NonZeroUsize) -> Result<Slice, Oom::Output>
+    pub fn alloc<O, S>(&mut self, len: NonZeroUsize) -> Result<Slice, O::Output>
     where
-        Oom: OomStrategy,
-        Sch: SearchStrategy,
+        O: OomStrategy,
+        S: SearchStrategy,
     {
-        Sch::try_extract(self, len).ok_or(Oom::strategy(self, len))
+        match S::search(self.slices(), len) {
+            Some(index) => Ok(self
+                .extract_slice(index, len)
+                .expect("Corrupt `SearchStrategy`")),
+            None => Err(O::strategy(self, len)),
+        }
     }
 
-    pub fn try_alloc(&mut self, len: NonZeroUsize) -> Option<Slice> {
-        self.alloc::<DefaultOomStrategy, FirstFit>(len).ok()
+    pub fn extract_slice(&mut self, index: usize, len: NonZeroUsize) -> Result<Slice, ZeroLength> {
+        let slice = &mut self.slices[index];
+        if slice.len() == len.get() {
+            Ok(self.slices.remove(index))
+        } else {
+            let start = slice.start;
+            slice.set_start(start + len.get())?;
+            Ok(Slice { start, len })
+        }
+    }
+
+    pub fn alloc_infallible<S: SearchStrategy>(&mut self, len: NonZeroUsize) -> Slice {
+        self.alloc::<Noop, S>(len).unwrap()
+    }
+
+    pub fn alloc_first<O: OomStrategy>(&mut self, len: NonZeroUsize) -> Result<Slice, O::Output> {
+        self.alloc::<O, FirstFit>(len)
     }
 }
 
