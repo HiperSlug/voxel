@@ -14,7 +14,7 @@ pub struct AllocatedBuffer<T> {
     label: &'static str,
     // We can only write when we know data is not being read
     write_queue: Vec<T>,
-    
+
     buffer: Buffer,
     freelist: Arc<Mutex<FreeList>>,
 }
