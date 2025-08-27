@@ -7,7 +7,6 @@ use bevy::{
         render_phase::{
             PhaseItem, RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass,
         },
-        render_resource::Buffer,
     },
 };
 
