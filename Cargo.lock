@@ -4426,6 +4426,8 @@ dependencies = [
  "freelist",
  "math",
  "ndshape",
+ "nonmax",
+ "offset-allocator",
  "parking_lot",
  "rand 0.9.2",
  "rayon",

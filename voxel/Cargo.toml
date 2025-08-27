@@ -21,6 +21,8 @@ rayon = "1.11.0"
 bytemuck = "1.23.2"
 enum-map = { version = "2.7.3", features = ["serde"] }
 parking_lot = "0.12.4"
+offset-allocator = "0.2.0"
+nonmax = "0.5.5"
 
 [features]
 dynamic = ["bevy/dynamic_linking"]

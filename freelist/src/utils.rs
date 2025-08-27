@@ -1,5 +1,7 @@
 use std::ops::{Add, Range, Sub};
 
+use crate::FreeList;
+
 pub fn nz_opt<T>(range: Range<T>) -> Option<Range<T>>
 where
     T: PartialOrd,
@@ -39,6 +41,22 @@ where
 }
 
 #[inline]
+pub fn split<T>(range: &Range<T>, at: T) -> (Option<Range<T>>, Option<Range<T>>)
+where
+    T: PartialOrd + Copy,
+{
+    try_split(range, at).unwrap()
+}
+
+#[inline]
+pub fn split_relative<T>(range: &Range<T>, at: T) -> (Option<Range<T>>, Option<Range<T>>)
+where
+    T: PartialOrd + Copy + Add<Output = T>,
+{
+    try_split_relative(range, at).unwrap()
+}
+
+#[inline]
 pub fn overlaps<T>(range: &Range<T>, other: &Range<T>) -> bool
 where
     T: PartialOrd,
@@ -60,4 +78,9 @@ where
     T: PartialEq,
 {
     range.end == other.start
+}
+
+#[inline]
+pub fn noop_fallback<T>(_: &mut FreeList<T>, _: T) -> () {
+    ()
 }

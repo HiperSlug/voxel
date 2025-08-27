@@ -35,16 +35,7 @@ where
     pub fn new(extent: Range<T>) -> Self {
         debug_assert!(!extent.is_empty());
 
-        Self {
-            ranges: vec![extent.clone()],
-            extent,
-        }
-    }
-
-    pub fn with_internal_capacity(extent: Range<T>, capacity: usize) -> Self {
-        debug_assert!(!extent.is_empty());
-
-        let mut ranges = Vec::with_capacity(capacity);
+        let mut ranges = Vec::new();
         ranges.push(extent.clone());
 
         Self { ranges, extent }
@@ -116,15 +107,13 @@ where
     T: Copy + PartialOrd + Sub<Output = T> + Add<Output = T>,
 {
     #[inline]
-    pub fn alloc<O, E, S>(&mut self, len: T, search: S, fallback: O) -> Result<Range<T>, E>
+    pub fn alloc<O, E, S>(&mut self, len: T, search: S, fallback: O) -> Result<Option<Range<T>>, E>
     where
         O: FnOnce(&mut Self, T) -> E,
         S: FnOnce(&[Range<T>], T) -> Option<usize>,
     {
         match search(&self.ranges, len) {
-            Some(index) => Ok(self
-                .extract_range(index, len)
-                .expect("corrupt [`SearchStrategy`]")),
+            Some(index) => Ok(self.extract_range(index, len)),
             None => Err(fallback(self, len)),
         }
     }
@@ -149,6 +138,7 @@ where
         let search = |ranges: &[Range<T>], len: T| ranges.iter().position(|r| length(r) >= len);
 
         self.alloc(len, search, fallback)
+            .map(|opt| opt.expect("builtin search"))
     }
 
     #[inline]
@@ -159,6 +149,7 @@ where
         let search = |ranges: &[Range<T>], len: T| ranges.iter().rposition(|r| length(r) >= len);
 
         self.alloc(len, search, fallback)
+            .map(|opt| opt.expect("builtin search"))
     }
 
     #[inline]
@@ -192,6 +183,7 @@ where
         };
 
         self.alloc(len, search, fallback)
+            .map(|opt| opt.expect("builtin search"))
     }
 
     #[inline]
@@ -210,6 +202,7 @@ where
         };
 
         self.alloc(len, search, fallback)
+            .map(|opt| opt.expect("builtin search"))
     }
 }
 
