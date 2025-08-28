@@ -1,6 +1,6 @@
 use bevy::render::render_resource::ShaderType;
 use bytemuck::{Pod, Zeroable};
-use math::prelude::*;
+use math::signed_axis::SignedAxisMap;
 use nonmax::NonMaxU32;
 use std::fmt::Debug;
 
@@ -76,7 +76,7 @@ impl Debug for VoxelQuad {
 
 pub struct ChunkMesh {
     pub allocation: BufferAllocation<VoxelQuad>,
-    // invariants: 
+    // invariants:
     // - first Some == 0,
     // - each offset must be greater than the preceeding offset,
     // - offset < allocation.size()
@@ -87,14 +87,12 @@ impl ChunkMesh {
     pub fn range(&self, signed_axis: SignedAxis) -> Option<(u32, u32)> {
         let offset = self.offsets[signed_axis]?.get();
         let start = self.allocation.offset() + offset;
-        
+
         let index = signed_axis.into_usize();
 
         let len_to_end = self.allocation.size() - offset;
 
-        let len = self
-            .offsets
-            .as_array()[(index + 1)..]
+        let len = self.offsets.as_array()[(index + 1)..]
             .iter()
             .find_map(|opt| opt.map(|nm| nm.get() - offset))
             .unwrap_or(len_to_end);

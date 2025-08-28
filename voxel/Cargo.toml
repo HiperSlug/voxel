@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 bevy = { workspace = true }
 math = { path = "../math" }
-freelist = { path = "../freelist" }
 anyhow = "1.0.98"
 fastnoise-lite = "1.1.1"
 ndshape = "0.3.0"

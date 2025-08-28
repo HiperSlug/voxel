@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
     tasks::ConditionalSendFuture,
 };
-use math::prelude::*;
+use math::signed_axis::SignedAxisMap;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_slice as json_de;
 use std::collections::HashMap;

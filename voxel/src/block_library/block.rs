@@ -1,5 +1,5 @@
 use bevy::{math::bounding::Aabb3d, prelude::*};
-use math::prelude::*;
+use math::signed_axis::SignedAxisMap;
 use std::collections::HashMap;
 
 use super::intermediate::IntermediateBlock;
@@ -14,7 +14,7 @@ pub struct Block {
 
 impl Block {
     pub fn from_intermediate(
-        intermediate: &IntermediateBlock,
+        intermediate: IntermediateBlock,
         texture_context: &HashMap<String, usize>,
     ) -> Option<Self> {
         let IntermediateBlock {
@@ -22,18 +22,15 @@ impl Block {
             collision_aabbs,
             is_translucent,
             textures: texture_names,
-        } = intermediate.clone();
+        } = intermediate;
 
-        let opt_textures = SignedAxisMap::from_fn(|s| {
-            let name = &texture_names.as_array()[s.into_usize()];
-            texture_context.get(name)
-        });
+        let opt_textures = texture_names.map(|_, s| texture_context.get(&s));
 
         if opt_textures.iter().any(|(_, opt)| opt.is_none()) {
             return None;
         }
 
-        let textures = opt_textures.map(|_, opt| *opt.unwrap());
+        let textures = opt_textures_array.map(|_, opt| opt.unwrap());
 
         Some(Self {
             display_name,

@@ -47,7 +47,7 @@ impl BlockLibrary {
                 }
             };
 
-            let block = match Block::from_intermediate(block, &texture_map) {
+            let block = match Block::from_intermediate(block.clone(), &texture_map) {
                 Some(thing) => thing,
                 None => {
                     error!(
