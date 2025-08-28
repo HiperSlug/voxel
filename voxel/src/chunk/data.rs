@@ -1,12 +1,10 @@
 use bevy::render::render_resource::ShaderType;
 use bytemuck::{Pod, Zeroable};
-use freelist::Slice;
+use math::prelude::*;
+use nonmax::NonMaxU32;
 use std::fmt::Debug;
 
-use crate::{
-    render::buffer::{BufferAllocation, MultiBufferAllocation},
-    voxel::Voxel,
-};
+use crate::{render::buffer::BufferAllocation, voxel::Voxel};
 
 use super::{PADDED_CHUNK_AREA, PADDED_CHUNK_VOLUME};
 
@@ -77,5 +75,30 @@ impl Debug for VoxelQuad {
 }
 
 pub struct ChunkMesh {
-    pub allocation: Option<MultiBufferAllocation<VoxelQuad, 6>>,
+    pub allocation: BufferAllocation<VoxelQuad>,
+    // invariants: 
+    // - first Some == 0,
+    // - each offset must be greater than the preceeding offset,
+    // - offset < allocation.size()
+    pub offsets: SignedAxisMap<Option<NonMaxU32>>,
+}
+
+impl ChunkMesh {
+    pub fn range(&self, signed_axis: SignedAxis) -> Option<(u32, u32)> {
+        let offset = self.offsets[signed_axis]?.get();
+        let start = self.allocation.offset() + offset;
+        
+        let index = signed_axis.into_usize();
+
+        let len_to_end = self.allocation.size() - offset;
+
+        let len = self
+            .offsets
+            .as_array()[(index + 1)..]
+            .iter()
+            .find_map(|opt| opt.map(|nm| nm.get() - offset))
+            .unwrap_or(len_to_end);
+
+        Some((start, len))
+    }
 }

@@ -41,7 +41,8 @@ mod slab {
         }
 
         pub fn try_store(&mut self, data: &[u8]) -> Option<SlabAllocation> {
-            let allocation = self.allocator.allocate(data.len() as u32)?;
+            let size = data.len() as u32;
+            let allocation = self.allocator.allocate(size)?;
 
             let offset = allocation.offset as u64;
             // alloc_len != data.len()
@@ -104,10 +105,7 @@ mod slab {
                 }
             }
 
-            Some(SlabAllocation {
-                allocation,
-                size: data.len() as u64,
-            })
+            Some(SlabAllocation { allocation, size })
         }
 
         pub fn free(&mut self, slab_allocation: &SlabAllocation) {
@@ -131,7 +129,7 @@ mod slab {
 
     pub struct SlabAllocation {
         pub allocation: Allocation,
-        pub size: u64,
+        pub size: u32,
     }
 
     pub struct SlabInfo {
@@ -295,6 +293,10 @@ impl<T> GpuBufferAllocator<T> {
         }
     }
 
+    pub fn slabs(&self) -> &Vec<Option<GpuSlab>> {
+        &self.slabs
+    }
+
     pub fn receive_sync_info(
         &mut self,
         device: &RenderDevice,
@@ -341,22 +343,22 @@ impl<T> BufferAllocation<T> {
         self.slab_index
     }
 
-    pub fn byte_offset(&self) -> u64 {
-        self.slab_allocation.allocation.offset as u64
+    pub fn byte_offset(&self) -> u32 {
+        self.slab_allocation.allocation.offset
     }
 
-    pub fn byte_size(&self) -> u64 {
+    pub fn byte_size(&self) -> u32 {
         self.slab_allocation.size
     }
 
-    pub fn offset(&self) -> u64 {
-        debug_assert_eq!(self.byte_offset() % size_of::<T>() as u64, 0);
-        self.byte_offset() / size_of::<T>() as u64
+    pub fn offset(&self) -> u32 {
+        debug_assert_eq!(self.byte_offset() % size_of::<T>() as u32, 0);
+        self.byte_offset() / size_of::<T>() as u32
     }
 
-    pub fn size(&self) -> u64 {
-        debug_assert_eq!(self.byte_size() % size_of::<T>() as u64, 0);
-        self.byte_size() / size_of::<T>() as u64
+    pub fn size(&self) -> u32 {
+        debug_assert_eq!(self.byte_size() % size_of::<T>() as u32, 0);
+        self.byte_size() / size_of::<T>() as u32
     }
 }
 

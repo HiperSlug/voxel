@@ -1,6 +1,8 @@
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 
+pub use Sign::*;
+
 #[repr(i8)]
 #[derive(Debug, Clone, Copy, Enum, Deserialize, Serialize)]
 pub enum Sign {

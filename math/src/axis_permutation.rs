@@ -1,11 +1,9 @@
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 
-use crate::prelude::*;
+use crate::axis::*;
 
-use AxisPermutation::*;
-
-pub type SignificanceMap = [usize; 3];
+pub use AxisPermutation::*;
 
 #[derive(Debug, Clone, Copy, Enum, Deserialize, Serialize)]
 pub enum AxisPermutation {

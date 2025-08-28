@@ -2,7 +2,7 @@ use enum_map::Enum;
 use glam::UVec3;
 use serde::{Deserialize, Serialize};
 
-use crate::prelude::*;
+pub use Axis::*;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Enum, Deserialize, Serialize)]
@@ -13,6 +13,8 @@ pub enum Axis {
 }
 
 impl Axis {
+    pub const ALL: [Self; 3] = [X, Z, Z];
+
     pub const fn as_uvec3(&self) -> UVec3 {
         match self {
             X => UVec3::new(1, 0, 0),

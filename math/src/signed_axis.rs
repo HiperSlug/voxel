@@ -2,7 +2,9 @@ use enum_map::{Enum, EnumMap};
 use glam::IVec3;
 use serde::{Deserialize, Serialize};
 
-use crate::prelude::*;
+use crate::{axis::*, sign::*};
+
+pub use SignedAxis::*;
 
 pub type SignedAxisMap<T> = EnumMap<SignedAxis, T>;
 
