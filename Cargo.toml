@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["main", "math", "playground", "playground_2", "voxel", "wgpu_drawid"]
+members = [ "ash_probe","main", "math", "playground", "playground_2", "voxel", "wgpu_drawid"]
 
 [profile.dev]
 opt-level = 1

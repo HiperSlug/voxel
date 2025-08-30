@@ -70,7 +70,7 @@ pub struct IndirectTerrainBuffers {
     buffers: Vec<Option<(Buffer, u32)>>,
 }
 
-pub fn prepare_indirect_terrain_buffer(
+pub fn  (
     mut commands: Commands,
     query: Query<(Entity, &ExtractTerrain)>,
     device: Res<RenderDevice>,
