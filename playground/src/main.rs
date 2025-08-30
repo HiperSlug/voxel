@@ -1,9 +1,15 @@
-// use bevy::pbr::SetMeshViewBindingArrayBindGroup;
+//! A shader that renders a mesh multiple times in one draw call.
+//!
+//! Bevy will automatically batch and instance your meshes assuming you use the same
+//! `Handle<Material>` and `Handle<Mesh>` for all of your instances.
+//!
+//! This example is intended for advanced users and shows how to make a custom instancing
+//! implementation using bevy's low level rendering api.
+//! It's generally recommended to try the built-in instancing before going with this approach.
+
 use bevy::{
-    // camera::visibility::NoFrustumCulling,
     asset::embedded_asset, core_pipeline::core_3d::Transparent3d, ecs::{
-        query::QueryItem,
-        system::{lifetimeless::*, SystemParamItem},
+        query::QueryItem, system::{lifetimeless::*, SystemParamItem}
     }, pbr::{
         MeshPipeline, MeshPipelineKey, RenderMeshInstances, SetMeshBindGroup, SetMeshViewBindGroup,
     }, prelude::*, render::{
@@ -19,24 +25,21 @@ use bevy::{
         sync_world::MainEntity,
         view::{ExtractedView, NoFrustumCulling, NoIndirectDrawing},
         Render, RenderApp, RenderSet, 
-        // RenderStartup, RenderSystems,
     }
 };
+use bevy_flycam::PlayerPlugin;
 use bytemuck::{Pod, Zeroable};
-
-/// This example uses a shader source file from the assets subdirectory
-const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, CustomMaterialPlugin))
+        .add_plugins((DefaultPlugins, CustomMaterialPlugin, PlayerPlugin))
         .add_systems(Startup, setup)
         .run();
 }
 
 fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.5, 0.5, 0.5))),
+        Mesh3d(meshes.add(Rectangle::new(1.0, 1.0))),
         InstanceMaterialData(
             (1..=10)
                 .flat_map(|x| (1..=10).map(move |y| (x as f32 / 10.0, y as f32 / 10.0)))
@@ -54,18 +57,17 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         // instancing, and that is not taken into account with the built-in frustum culling.
         // We must disable the built-in frustum culling by adding the `NoFrustumCulling` marker
         // component to avoid incorrect culling.
-        NoFrustumCulling,
+        // NoFrustumCulling,
     ));
 
-    // camera
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(0.0, 0.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
-        // We need this component because we use `draw_indexed` and `draw`
-        // instead of `draw_indirect_indexed` and `draw_indirect` in
-        // `DrawMeshInstanced::render`.
-        NoIndirectDrawing,
-    ));
+    // commands.spawn((
+    //     Camera3d::default(),
+    //     Transform::from_xyz(0.0, 0.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
+    //     // We need this component because we use `draw_indexed` and `draw`
+    //     // instead of `draw_indirect_indexed` and `draw_indirect` in
+    //     // `DrawMeshInstanced::render`.
+    //     NoIndirectDrawing,
+    // ));
 }
 
 #[derive(Component, Deref)]
@@ -89,13 +91,19 @@ impl Plugin for CustomMaterialPlugin {
         app.sub_app_mut(RenderApp)
             .add_render_command::<Transparent3d, DrawCustom>()
             .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
-            .add_systems(Render, init_custom_pipeline);
-
-        let a = embedded_asset!(app, "instancing.wgsl");
+            .add_systems(
+                Render,
+                (
+                    queue_custom.in_set(RenderSet::QueueMeshes),
+                    prepare_instance_buffers.in_set(RenderSet::PrepareResources),
+                ),
+            );
+        
+        embedded_asset!(app, "instancing.wgsl");
     }
 
     fn finish(&self, app: &mut App) {
-        app.init_resource::<CustomPipeline>();
+        app.sub_app_mut(RenderApp).init_resource::<CustomPipeline>();
     }
 }
 
@@ -186,16 +194,13 @@ struct CustomPipeline {
     mesh_pipeline: MeshPipeline,
 }
 
-fn init_custom_pipeline(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mesh_pipeline: Res<MeshPipeline>,
-) {
-    commands.insert_resource(CustomPipeline {
-        shader: asset_server.load(SHADER_ASSET_PATH),
-        mesh_pipeline: mesh_pipeline.clone(),
-    });
-    info!("here");
+impl FromWorld for CustomPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let shader = world.resource::<AssetServer>().load("embedded://playground/instancing.wgsl");
+        let mesh_pipeline = world.resource::<MeshPipeline>().clone();
+
+        Self { shader, mesh_pipeline }
+    }
 }
 
 impl SpecializedMeshPipeline for CustomPipeline {
@@ -233,8 +238,7 @@ impl SpecializedMeshPipeline for CustomPipeline {
 type DrawCustom = (
     SetItemPipeline,
     SetMeshViewBindGroup<0>,
-    SetMeshBindGroup<1>, // This used to be SetMeshBindArrayBindGroup, but that structure no longer exist.
-    // SetMeshBindGroup<2>,
+    SetMeshBindGroup<1>,
     DrawMeshInstanced,
 );
 

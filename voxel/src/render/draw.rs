@@ -64,6 +64,9 @@ impl<P: PhaseItem> RenderCommand<P> for DrawVoxelQuads {
             };
 
             pass.set_vertex_buffer(1, instance_buffer.slice(..));
+            pass.set_push_constants(stages, offset, data);
+
+            pass.draw_indirect(indirect_buffer, indirect_offset);
 
             pass.multi_draw_indirect(indirect_buffer, 0, *count);
         }

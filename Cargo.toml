@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["main", "math", "playground", "playground_2", "voxel"]
+members = ["main", "math", "playground", "playground_2", "voxel", "wgpu_drawid"]
 
 [profile.dev]
 opt-level = 1
@@ -10,3 +10,4 @@ opt-level = 3
 
 [workspace.dependencies]
 bevy = "0.16.1"
+bevy_flycam = "0.16.1"

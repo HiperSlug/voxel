@@ -5,7 +5,9 @@ edition = "2024"
 
 [dependencies]
 bevy = { workspace = true }
+bevy_flycam = { workspace = true }
 bytemuck = "1.23.2"
 
 [features]
 bevy_dynamic_linking = ["bevy/dynamic_linking"]
+
