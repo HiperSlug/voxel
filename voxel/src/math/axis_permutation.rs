@@ -1,7 +1,7 @@
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 
-use crate::axis::*;
+use super::axis::*;
 
 pub use AxisPermutation::*;
 
@@ -35,19 +35,14 @@ impl AxisPermutation {
     }
 
     #[inline]
-    pub fn sigificance_map(&self) -> [usize; 3] {
+    pub const fn sigificance_map(&self) -> AxisMap<usize> {
         match self {
-            XYZ => [0, 1, 2],
-            YZX => [2, 0, 1],
-            ZXY => [1, 2, 0],
-            XZY => [0, 2, 1],
-            YXZ => [1, 0, 2],
-            ZYX => [2, 1, 0],
+            XYZ => AxisMap::from_array([0, 1, 2]),
+            YZX => AxisMap::from_array([2, 0, 1]),
+            ZXY => AxisMap::from_array([1, 2, 0]),
+            XZY => AxisMap::from_array([0, 2, 1]),
+            YXZ => AxisMap::from_array([1, 0, 2]),
+            ZYX => AxisMap::from_array([2, 1, 0]),
         }
-    }
-
-    #[inline]
-    pub fn significance(&self, axis: Axis) -> usize {
-        self.sigificance_map()[axis.into_usize()]
     }
 }

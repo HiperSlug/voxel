@@ -1,6 +1,7 @@
 mod buffer;
 mod draw;
 mod pipeline;
+mod vk;
 
 use bevy::{
     prelude::*,
@@ -70,7 +71,7 @@ pub struct IndirectTerrainBuffers {
     buffers: Vec<Option<(Buffer, u32)>>,
 }
 
-pub fn  (
+pub fn a(
     mut commands: Commands,
     query: Query<(Entity, &ExtractTerrain)>,
     device: Res<RenderDevice>,

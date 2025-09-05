@@ -2,13 +2,16 @@ use bevy::{
     ecs::{
         query::ROQueryItem,
         system::{
-            lifetimeless::{Read, SRes}, SystemParamItem
+            SystemParamItem,
+            lifetimeless::{Read, SRes},
         },
     },
     pbr::{SetMeshBindGroup, SetMeshViewBindGroup},
     prelude::*,
     render::{
-        render_phase::{PhaseItem, RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass},
+        render_phase::{
+            PhaseItem, RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass,
+        },
         render_resource::ShaderType,
     },
 };
