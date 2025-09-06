@@ -35,14 +35,14 @@ impl AxisPermutation {
     }
 
     #[inline]
-    pub const fn sigificance_map(&self) -> AxisMap<usize> {
+    pub const fn axis_map(&self) -> AxisMap<Axis> {
         match self {
-            XYZ => AxisMap::from_array([0, 1, 2]),
-            YZX => AxisMap::from_array([2, 0, 1]),
-            ZXY => AxisMap::from_array([1, 2, 0]),
-            XZY => AxisMap::from_array([0, 2, 1]),
-            YXZ => AxisMap::from_array([1, 0, 2]),
-            ZYX => AxisMap::from_array([2, 1, 0]),
+            XYZ => AxisMap::from_array([X, Y, Z]),
+            YZX => AxisMap::from_array([Z, X, Y]),
+            ZXY => AxisMap::from_array([Y, Z, X]),
+            XZY => AxisMap::from_array([X, Z, Y]),
+            YXZ => AxisMap::from_array([Y, X, Z]),
+            ZYX => AxisMap::from_array([Z, Y, X]),
         }
     }
 }

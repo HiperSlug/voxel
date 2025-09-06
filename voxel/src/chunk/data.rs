@@ -1,102 +1,67 @@
-use bevy::render::render_resource::ShaderType;
+use bevy::{math::IVec3, render::render_resource::ShaderType};
 use bytemuck::{Pod, Zeroable};
-use math::signed_axis::SignedAxisMap;
-use nonmax::NonMaxU32;
-use std::fmt::Debug;
+use std::ops::Range;
 
-use crate::{render::buffer::BufferAllocation, voxel::Voxel};
+use crate::{math::signed_axis::*, voxel::Voxel};
 
-use super::{PADDED_CHUNK_AREA, PADDED_CHUNK_VOLUME};
-
-const MASK_6: u32 = 0x3F;
+use super::padded::{AREA, VOL};
 
 #[derive(Debug)]
 pub struct Chunk {
-    pub voxels: [Voxel; PADDED_CHUNK_VOLUME],
-    pub opaque_mask: [u64; PADDED_CHUNK_AREA],
-    pub transparent_mask: [u64; PADDED_CHUNK_AREA],
+    pub voxels: [Voxel; VOL],
+    pub opaque_mask: [u64; AREA],
+    pub transparent_mask: [u64; AREA],
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Pod, Zeroable, ShaderType)]
+#[derive(Clone, Copy, Pod, Zeroable, ShaderType)]
 pub struct VoxelQuad {
-    spatial: u32,
-    pub id: u32,
+    position: IVec3,
+    data: u32,
 }
 
 impl VoxelQuad {
     #[inline]
-    pub const fn new(x: u32, y: u32, z: u32, w: u32, h: u32, id: u32) -> Self {
+    pub const fn new(
+        x: u32,
+        y: u32,
+        z: u32,
+        w: u32,
+        h: u32,
+        signed_axis: SignedAxis,
+        texture_index: u32,
+        chunk_index: u32,
+    ) -> Self {
+        // this must match the shader
+        let signed_axis = match signed_axis {
+            PosX => 0,
+            PosY => 1,
+            PosZ => 2,
+            NegX => 3,
+            NegY => 4,
+            NegZ => 5,
+        };
+
         Self {
-            spatial: h << 24 | w << 18 | z << 12 | y << 6 | x,
-            id,
+            first: h << 24 | w << 18 | z << 12 | y << 6 | x,
+            second: chunk_index << 16 | texture_index << 3 | signed_axis,
         }
-    }
-
-    #[inline]
-    pub const fn x(&self) -> u32 {
-        self.spatial & MASK_6
-    }
-
-    #[inline]
-    pub const fn y(&self) -> u32 {
-        (self.spatial >> 6) & MASK_6
-    }
-
-    #[inline]
-    pub const fn z(&self) -> u32 {
-        (self.spatial >> 12) & MASK_6
-    }
-
-    #[inline]
-    pub const fn w(&self) -> u32 {
-        (self.spatial >> 18) & MASK_6
-    }
-
-    #[inline]
-    pub const fn h(&self) -> u32 {
-        (self.spatial >> 24) & MASK_6
-    }
-}
-
-impl Debug for VoxelQuad {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "VoxelQuad {{ x: {}, y: {}, z: {}, w: {}, h: {}, texture_id: {} }}",
-            self.x(),
-            self.y(),
-            self.z(),
-            self.w(),
-            self.h(),
-            self.id
-        )
     }
 }
 
 pub struct ChunkMesh {
-    pub allocation: BufferAllocation<VoxelQuad>,
-    // invariants:
-    // - first Some == 0,
-    // - each offset must be greater than the preceeding offset,
-    // - offset < allocation.size()
-    pub offsets: SignedAxisMap<Option<NonMaxU32>>,
+    pub offsets: [u32; 7],
 }
 
 impl ChunkMesh {
-    pub fn range(&self, signed_axis: SignedAxis) -> Option<(u32, u32)> {
-        let offset = self.offsets[signed_axis]?.get();
-        let start = self.allocation.offset() + offset;
-
-        let index = signed_axis.into_usize();
-
-        let len_to_end = self.allocation.size() - offset;
-
-        let len = self.offsets.as_array()[(index + 1)..]
-            .iter()
-            .find_map(|opt| opt.map(|nm| nm.get() - offset))
-            .unwrap_or(len_to_end);
-
-        Some((start, len))
+    pub fn range(&self, signed_axis: SignedAxis) -> Range<u32> {
+        match signed_axis {
+            PosX => self.offsets[0]..self.offsets[1],
+            PosY => self.offsets[1]..self.offsets[2],
+            PosZ => self.offsets[2]..self.offsets[3],
+            NegX => self.offsets[3]..self.offsets[4],
+            NegY => self.offsets[4]..self.offsets[5],
+            NegZ => self.offsets[5]..self.offsets[6],
+        }
     }
 }

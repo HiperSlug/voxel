@@ -20,10 +20,10 @@ pub enum SignedAxis {
 impl SignedAxis {
     pub const ALL: [SignedAxis; 6] = [
         SignedAxis::PosX,
-        SignedAxis::NegX,
         SignedAxis::PosY,
-        SignedAxis::NegY,
         SignedAxis::PosZ,
+        SignedAxis::NegX,
+        SignedAxis::NegY,
         SignedAxis::NegZ,
     ];
 

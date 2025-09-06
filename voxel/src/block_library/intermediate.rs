@@ -1,13 +1,12 @@
+use crate::math::signed_axis::SignedAxisMap;
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
     math::bounding::Aabb3d,
     prelude::*,
     tasks::ConditionalSendFuture,
 };
-use math::signed_axis::SignedAxisMap;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_slice as json_de;
-use std::collections::HashMap;
 use walkdir::WalkDir;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -18,8 +17,8 @@ struct BlockLibraryConfig {
 
 #[derive(Debug, Asset, TypePath)]
 pub struct IntermediateBlockLibrary {
-    pub blocks: HashMap<String, Handle<IntermediateBlock>>,
-    pub textures: HashMap<String, Handle<Image>>,
+    pub blocks: Vec<(String, Handle<IntermediateBlock>)>,
+    pub textures: Vec<(String, Handle<Image>)>,
     pub texture_size: UVec2,
 }
 
@@ -49,67 +48,48 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
                 texture_size,
             } = json_de(&bytes)?;
 
-            let mut blocks = HashMap::new();
-            let mut textures = HashMap::new();
+            let mut blocks = Vec::new();
+            let mut textures = Vec::new();
 
             for library in libraries {
-                let blocks_path = format!("block_libs/{library}/blocks");
+                fn push_names_and_handles<T: Asset>(
+                    vec: &mut Vec<(String, Handle<T>)>,
+                    path: &str,
+                    load_context: &mut LoadContext,
+                ) {
+                    for result in WalkDir::new(path)
+                        .into_iter()
+                        .filter_entry(|e| e.file_type().is_file())
+                    {
+                        let dir = match result {
+                            Ok(dir) => dir,
+                            Err(e) => {
+                                warn!("Error {e} walking {path}");
+                                continue;
+                            }
+                        };
 
-                for result in WalkDir::new(&blocks_path)
-                    .into_iter()
-                    .filter_entry(|e| e.file_type().is_file())
-                {
-                    let dir = match result {
-                        Ok(dir) => dir,
-                        Err(e) => {
-                            warn!("Error {e} walking {blocks_path}");
+                        let path = dir.path();
+                        let Some(os_name) = path.file_stem() else {
+                            warn!("Nameless at {path:?} skipping");
                             continue;
-                        }
-                    };
+                        };
 
-                    let path = dir.path();
-                    let Some(os_name) = path.file_stem() else {
-                        warn!("Nameless block at {path:?} skipping");
-                        continue;
-                    };
+                        let Some(name) = os_name.to_str() else {
+                            warn!("Invalid utf-8 name at {path:?} skipping");
+                            continue;
+                        };
 
-                    let Some(name) = os_name.to_str() else {
-                        warn!("Invalid utf8 name at {path:?} skipping");
-                        continue;
-                    };
-
-                    let handle = load_context.load(path);
-                    blocks.insert(name.to_string(), handle);
+                        let handle = load_context.load(path);
+                        vec.push((name.to_string(), handle));
+                    }
                 }
 
+                let blocks_path = format!("block_libs/{library}/blocks");
                 let textures_path = format!("block_libs/{library}/textures");
 
-                for result in WalkDir::new(&textures_path)
-                    .into_iter()
-                    .filter_entry(|e| e.file_type().is_file())
-                {
-                    let dir = match result {
-                        Ok(dir) => dir,
-                        Err(e) => {
-                            warn!("Error {e} walking {textures_path}");
-                            continue;
-                        }
-                    };
-
-                    let path = dir.path();
-                    let Some(os_name) = path.file_stem() else {
-                        warn!("Nameless texture at {path:?} skipping");
-                        continue;
-                    };
-
-                    let Some(name) = os_name.to_str() else {
-                        warn!("Invalid utf8 name at {path:?} skipping");
-                        continue;
-                    };
-
-                    let handle = load_context.load(path);
-                    textures.insert(name.to_string(), handle);
-                }
+                push_names_and_handles(&mut blocks, &blocks_path, load_context);
+                push_names_and_handles(&mut textures, &textures_path, load_context);
             }
 
             Ok(IntermediateBlockLibrary {

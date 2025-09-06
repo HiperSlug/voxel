@@ -1,4 +1,4 @@
-pub const VOXEL_LENGTH: f32 = 0.5;
+pub const VOXEL_LEN: f32 = 0.5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Voxel {
