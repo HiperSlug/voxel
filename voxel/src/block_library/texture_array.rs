@@ -37,7 +37,7 @@ pub fn build(
     textures: &[(String, Handle<Image>)],
     size: UVec2,
     mut image_assets: ResMut<Assets<Image>>,
-) -> (HashMap<String, usize>, Handle<Image>) {
+) -> (HashMap<String, u32>, Handle<Image>) {
     let mut name_to_index = HashMap::new();
     let mut data = Vec::new();
 
@@ -56,7 +56,7 @@ pub fn build(
         let image_data = &image.data.unwrap();
         data.extend(image_data);
 
-        name_to_index.insert(name.to_string(), index);
+        name_to_index.insert(name.to_string(), index as u32);
     }
 
     let texture_array = Image::new(

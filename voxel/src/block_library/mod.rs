@@ -5,7 +5,9 @@ mod texture_array;
 use bevy::prelude::*;
 pub use block::Block;
 use intermediate::{IntermediateBlock, IntermediateBlockLibrary};
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Index};
+
+use crate::voxel::Voxel;
 
 // TODO: intern Strings for faster lookup and not copying it everywhere
 #[derive(Debug)]
@@ -13,14 +15,14 @@ pub struct BlockLibrary {
     pub blocks: Vec<Block>,
     pub names: Vec<String>,
     pub blocks_map: HashMap<String, Block>,
-    pub material: Handle<TextureArrayMaterial>,
+    // pub material: Handle<TextureArrayMaterial>,
 }
 
 impl BlockLibrary {
     pub fn build(
         intermediate: &IntermediateBlockLibrary,
         image_assets: ResMut<Assets<Image>>,
-        material_assets: ResMut<Assets<TextureArrayMaterial>>,
+        // material_assets: ResMut<Assets<TextureArrayMaterial>>,
         block_assets: Res<Assets<IntermediateBlock>>,
     ) -> Self {
         let IntermediateBlockLibrary {
@@ -45,7 +47,7 @@ impl BlockLibrary {
             let Some(block) = Block::from_intermediate(intermediate, &texture_name_to_index) else {
                 error!(
                     "IntermediateBlock {} has invalid texture",
-                    block.display_name
+                    intermediate.display_name,
                 );
                 continue;
             };
@@ -59,7 +61,15 @@ impl BlockLibrary {
             blocks,
             blocks_map,
             names,
-            material,
+            // material,
         }
+    }
+}
+
+impl Index<Voxel> for BlockLibrary {
+    type Output = Block;
+
+    fn index(&self, index: Voxel) -> &Self::Output {
+        &self.blocks[index.id as usize]
     }
 }

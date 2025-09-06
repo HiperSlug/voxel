@@ -13,24 +13,24 @@ pub struct Chunk {
     pub transparent_mask: [u64; AREA],
 }
 
+// This can be aligned to 8 bytes instead of 16 bytes by
+// storing the voxel_position (u6) and a chunk_index that
+// points to a chunk_pos (i32) in a storage buffer.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable, ShaderType)]
 pub struct VoxelQuad {
-    position: IVec3,
+    pos: IVec3,
     data: u32,
 }
 
 impl VoxelQuad {
     #[inline]
     pub const fn new(
-        x: u32,
-        y: u32,
-        z: u32,
+        pos: IVec3,
         w: u32,
         h: u32,
         signed_axis: SignedAxis,
         texture_index: u32,
-        chunk_index: u32,
     ) -> Self {
         // this must match the shader
         let signed_axis = match signed_axis {
@@ -43,8 +43,8 @@ impl VoxelQuad {
         };
 
         Self {
-            first: h << 24 | w << 18 | z << 12 | y << 6 | x,
-            second: chunk_index << 16 | texture_index << 3 | signed_axis,
+            pos,
+            data: signed_axis << 28 | h << 22 | w << 16 | texture_index,
         }
     }
 }
@@ -57,10 +57,10 @@ impl ChunkMesh {
     pub fn range(&self, signed_axis: SignedAxis) -> Range<u32> {
         match signed_axis {
             PosX => self.offsets[0]..self.offsets[1],
-            PosY => self.offsets[1]..self.offsets[2],
-            PosZ => self.offsets[2]..self.offsets[3],
-            NegX => self.offsets[3]..self.offsets[4],
-            NegY => self.offsets[4]..self.offsets[5],
+            NegX => self.offsets[1]..self.offsets[2],
+            PosY => self.offsets[2]..self.offsets[3],
+            NegY => self.offsets[3]..self.offsets[4],
+            PosZ => self.offsets[4]..self.offsets[5],
             NegZ => self.offsets[5]..self.offsets[6],
         }
     }

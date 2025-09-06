@@ -9,13 +9,13 @@ pub struct Block {
     pub display_name: String,
     pub collision_aabbs: Vec<Aabb3d>,
     pub is_translucent: bool,
-    pub textures: SignedAxisMap<usize>,
+    pub textures: SignedAxisMap<u32>,
 }
 
 impl Block {
     pub fn from_intermediate(
         intermediate: &IntermediateBlock,
-        texture_name_to_index: &HashMap<String, usize>,
+        texture_name_to_index: &HashMap<String, u32>,
     ) -> Option<Self> {
         let IntermediateBlock {
             display_name,
