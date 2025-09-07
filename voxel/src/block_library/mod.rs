@@ -9,7 +9,7 @@ use std::{collections::HashMap, ops::Index};
 
 use crate::voxel::Voxel;
 
-// TODO: intern Strings for faster lookup and not copying it everywhere
+// TODO: intern Strings for faster lookup and not cloning it everywhere
 #[derive(Debug)]
 pub struct BlockLibrary {
     pub blocks: Vec<Block>,

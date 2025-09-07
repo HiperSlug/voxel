@@ -86,4 +86,15 @@ impl ChunkPos {
     pub fn from_world(world: Vec3) -> Self {
         (world / WORLD_CHUNK_LEN).floor().as_ivec3().into()
     }
+
+    #[inline]
+    pub fn as_voxel(&self) -> IVec3 {
+        self.0 * unpadded::LEN as i32
+    }
+
+    #[inline]
+    pub fn from_voxel(voxel_pos: IVec3) -> Self {
+        // div_euclid acts like flooring division in this case
+        voxel_pos.map(|x| x.div_euclid(unpadded::LEN as i32)).into()
+    } 
 }
