@@ -105,7 +105,7 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
 pub struct IntermediateBlock {
     pub display_name: String,
     pub collision_aabbs: Vec<Aabb3d>,
-    pub is_translucent: bool,
+    pub is_transparent: bool,
     pub textures: SignedAxisMap<String>,
 }
 

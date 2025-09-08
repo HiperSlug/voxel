@@ -70,6 +70,6 @@ impl Index<Voxel> for BlockLibrary {
     type Output = Block;
 
     fn index(&self, index: Voxel) -> &Self::Output {
-        &self.blocks[index.id as usize]
+        &self.blocks[index.0.get() as usize]
     }
 }

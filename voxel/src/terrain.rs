@@ -38,7 +38,7 @@ impl ExtractComponent for Terrain {
 // for (chunk_pos, chunk_mesh_opt) in terrain.chunk_mesh_map.iter().map(|r| r.pair()) {
 //     if let Some(chunk_mesh) = chunk_mesh_opt {
 //         let visible = |signed_axis: &SignedAxis| match signed_axis {
-//             PosX => view_chunk_pos.x >= chunk_pos.x,
+//             PosX => view_chunk_pos.x >= chunk_pos.x, // ORDERING
 //             NegX => view_chunk_pos.x <= chunk_pos.x,
 //             PosY => view_chunk_pos.y >= chunk_pos.y,
 //             NegY => view_chunk_pos.y <= chunk_pos.y,

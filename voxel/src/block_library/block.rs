@@ -8,7 +8,7 @@ use super::intermediate::IntermediateBlock;
 pub struct Block {
     pub display_name: String,
     pub collision_aabbs: Vec<Aabb3d>,
-    pub is_translucent: bool,
+    pub is_transparent: bool,
     pub textures: SignedAxisMap<u32>,
 }
 
@@ -20,7 +20,7 @@ impl Block {
         let IntermediateBlock {
             display_name,
             collision_aabbs,
-            is_translucent,
+            is_transparent,
             textures: texture_names,
         } = intermediate.clone();
 
@@ -35,7 +35,7 @@ impl Block {
         Some(Self {
             display_name,
             collision_aabbs,
-            is_translucent,
+            is_transparent,
             textures,
         })
     }
