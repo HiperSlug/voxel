@@ -1,4 +1,4 @@
-mod buffer;
+mod buffer_allocator;
 mod draw;
 mod pipeline;
 mod vk;

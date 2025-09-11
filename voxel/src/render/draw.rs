@@ -19,7 +19,7 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::{
     chunk::VoxelQuad,
-    render::{BaseQuadBuffer, IndirectTerrainBuffers, buffer::GpuBufferAllocator},
+    render::{BaseQuadBuffer, IndirectTerrainBuffers, buffer_allocator::GpuBufferAllocator},
 };
 
 #[repr(C)]
