@@ -22,6 +22,8 @@ enum-map = { version = "2.7.3", features = ["serde"] }
 parking_lot = "0.12.4"
 offset-allocator = "0.2.0"
 nonmax = "0.5.5"
+derive_more = { version = "2.0.1", features = ["add", "add_assign", "from", "into"] }
+arc-swap = "1.7.1"
 
 [features]
 dynamic = ["bevy/dynamic_linking"]

@@ -1,169 +1,128 @@
 //! see bevy [`MeshAllocator`](https://github.com/bevyengine/bevy/blob/da126fa9647d7c2506126cc499c64861294a2ef7/crates/bevy_render/src/mesh/allocator.rs#L56)
 
 mod slab {
-    use std::mem::replace;
-
-    use bevy::render::{
-        render_resource::{Buffer, BufferDescriptor, BufferUsages},
-        renderer::{RenderDevice, RenderQueue},
-    };
     use offset_allocator::{Allocation, Allocator};
-
-    pub type WriteQueue = Vec<QueueElement>;
+    use std::mem::replace;
 
     pub struct QueueElement {
         pub offset: u64,
         pub data: Vec<u8>,
-        alloc_len: usize,
     }
 
     impl QueueElement {
         fn end(&self) -> u64 {
-            self.offset + self.alloc_len as u64
+            self.offset + self.data.len() as u64
+        }
+        
+        fn len(&self) -> usize {
+            self.data.len()
         }
     }
 
     pub struct Slab {
-        pub allocator: Allocator,
-        pub size: u64,
-        pub queue: WriteQueue,
+        allocator: Allocator,
+        write_queue: Vec<QueueElement>,
+        free_queue: Vec<Allocation>,
+        size: u32,
     }
 
     impl Slab {
-        pub fn new(size: u64) -> Self {
-            let allocator = Allocator::new(size as u32);
-
+        pub fn new(size: u32) -> Self {
             Self {
-                allocator,
+                allocator: Allocator::new(size),
+                write_queue: Vec::new(),
+                free_queue: Vec::new(),
                 size,
-                queue: Vec::new(),
             }
         }
 
-        pub fn try_store(&mut self, data: &[u8]) -> Option<SlabAllocation> {
-            let size = data.len() as u32;
-            let allocation = self.allocator.allocate(size)?;
+        pub fn try_store(&mut self, data: &[u8]) -> Option<Allocation> {
+            let allocation = self.allocator.allocate(data.len() as u32)?;
 
             let offset = allocation.offset as u64;
-            // alloc_len != data.len()
-            let alloc_len = self.allocator.allocation_size(allocation) as usize;
+            let len = self.allocator.allocation_size(allocation) as usize;
 
             let queue_index = self
-                .queue
-                .binary_search_by_key(&offset, |q| q.offset)
+                .write_queue
+                .binary_search_by_key(&offset, |e| e.offset)
                 .err()
                 .unwrap();
 
-            let (below, above) = self.queue.split_at_mut(queue_index);
-            let below = below.last_mut();
-            let above = above.first_mut();
+            let (below_slice, above_slice) = self.write_queue.split_at_mut(queue_index);
+            let below_opt = below_slice.last_mut();
+            let above_opt = above_slice.first_mut();
 
             // merges adjacent writes
             match (
-                below.and_then(|b| (offset == b.end()).then_some(b)),
-                above.and_then(|b| (b.offset == (offset + alloc_len as u64)).then_some(b)),
+                below_opt.filter(|b| offset == b.end()),
+                above_opt.filter(|a| a.offset == offset + len as u64),
             ) {
                 (None, None) => {
-                    let queue_element = QueueElement {
-                        offset,
-                        alloc_len,
-                        data: data.to_vec(),
-                    };
-                    self.queue.insert(queue_index, queue_element);
+                    self.write_queue.insert(
+                        queue_index,
+                        QueueElement {
+                            offset,
+                            data: {
+                                let mut vec = Vec::with_capacity(len);
+                                vec.extend(data);
+                                vec.resize(len, 0);
+                                vec
+                            },
+                        },
+                    );
                 }
                 (Some(below), None) => {
-                    let len_diff = below.alloc_len - below.data.len();
-                    below.data.reserve_exact(len_diff + data.len());
-                    below.data.resize(below.alloc_len, 0);
+                    below.data.reserve(len);
                     below.data.extend(data);
-
-                    below.alloc_len += alloc_len;
+                    below.data.resize(below.len() + len, 0);
                 }
                 (None, Some(above)) => {
-                    let mut new_data = Vec::with_capacity(alloc_len + above.data.len());
+                    let mut new_data = Vec::with_capacity(len + above.len());
                     new_data.extend(data);
-                    new_data.resize(alloc_len, 0);
+                    new_data.resize(len, 0);
                     new_data.extend(&above.data);
-                    above.data = new_data;
 
+                    above.data = new_data;
                     above.offset = offset;
-                    above.alloc_len += alloc_len;
                 }
                 (Some(below), Some(above)) => {
-                    let len_diff = below.alloc_len - below.data.len();
-                    below
-                        .data
-                        .reserve_exact(len_diff + alloc_len + above.data.len());
-                    below.data.resize(below.alloc_len, 0);
+                    below.data.reserve_exact(len + above.len());
                     below.data.extend(data);
-                    below.data.resize(below.alloc_len + alloc_len, 0);
+                    below.data.resize(below.len() + len, 0);
                     below.data.extend(&above.data);
 
-                    below.alloc_len += alloc_len + above.alloc_len;
-
-                    self.queue.remove(queue_index);
+                    self.write_queue.remove(queue_index);
                 }
             }
 
-            Some(SlabAllocation { allocation, size })
+            Some(allocation)
         }
 
-        pub fn free(&mut self, slab_allocation: &SlabAllocation) {
-            self.allocator.free(slab_allocation.allocation);
+        pub fn free(&mut self, allocation: Allocation) {
+            self.free_queue.push(allocation);
         }
 
         pub fn is_empty(&self) -> bool {
-            self.allocator.storage_report().total_free_space as u64 == self.size
+            self.allocator.storage_report().total_free_space == self.size
         }
 
-        pub fn slab_info(&mut self) -> Option<SlabInfo> {
-            (!self.queue.is_empty()).then(|| {
-                let capacity = self.queue.capacity();
-                SlabInfo {
-                    size: self.size,
-                    queue: replace(&mut self.queue, Vec::with_capacity(capacity)),
-                }
-            })
-        }
-    }
+        pub fn flush_queues(&mut self) -> Option<Vec<QueueElement>> {
+            for allocation in self.free_queue.drain(..) {
+                self.allocator.free(allocation);
+            }
 
-    pub struct SlabAllocation {
-        pub allocation: Allocation,
-        pub size: u32,
-    }
-
-    pub struct SlabInfo {
-        pub size: u64,
-        pub queue: WriteQueue,
-    }
-
-    pub struct GpuSlab {
-        pub buffer: Buffer,
-    }
-
-    impl GpuSlab {
-        pub fn new(
-            device: &RenderDevice,
-            label: &str,
-            size: u64,
-            buffer_usages: BufferUsages,
-        ) -> Self {
-            let buffer = device.create_buffer(&BufferDescriptor {
-                label: Some(label),
-                size,
-                usage: buffer_usages | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-
-            Self { buffer }
-        }
-
-        pub fn store(&self, queue: &RenderQueue, queue_element: &QueueElement) {
-            queue.write_buffer(&self.buffer, queue_element.offset, &queue_element.data)
+            if !self.write_queue.is_empty() {
+                let capacity = self.write_queue.capacity();
+                let queue = replace(&mut self.write_queue, Vec::with_capacity(capacity));
+                Some(queue)
+            } else {
+                None
+            }
         }
     }
 }
 
+use arc_swap::ArcSwap;
 use bevy::{
     prelude::*,
     render::{
@@ -173,37 +132,45 @@ use bevy::{
     },
 };
 use bytemuck::{Pod, cast_slice};
-use crossbeam::channel::{Receiver, Sender, bounded};
-use slab::{GpuSlab, Slab, SlabAllocation, SlabInfo};
-use std::marker::PhantomData;
+use parking_lot::Mutex;
+use slab::{Slab, SlabAllocation};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, LazyLock},
+};
 
-#[derive(Resource)]
+pub static BUFFER_ALLOCATOR_SETTINGS: LazyLock<ArcSwap<BufferAllocatorSettings>> =
+    LazyLock::new(|| ArcSwap::from_pointee(BufferAllocatorSettings::default()));
+
+pub struct BufferAllocatorSettings {
+    pub slab_size: u64,
+    pub large_threshold: u64,
+}
+
+impl Default for BufferAllocatorSettings {
+    fn default() -> Self {
+        const MIB: u64 = 2u64.pow(20);
+        Self {
+            slab_size: 16 * MIB,
+            large_threshold: 8 * MIB,
+        }
+    }
+}
+
+#[derive(Resource, Default)]
 pub struct BufferAllocator<T> {
-    slabs: Vec<(bool, Option<Slab>)>,
+    slabs: Arc<Mutex<Vec<(bool, Option<Slab>)>>>,
     recycle: Vec<usize>,
-    sender: Sender<Synchronize>,
     _phantom: PhantomData<T>,
 }
 
 impl<T: Pod> BufferAllocator<T> {
-    pub fn new(sender: Sender<Synchronize>) -> Self {
-        Self {
-            sender,
-            slabs: Vec::new(),
-            recycle: Vec::new(),
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn store(
-        &mut self,
-        data: &[T],
-        settings: &BufferAllocatorSettings<T>,
-    ) -> BufferAllocation<T> {
+    pub fn store(&mut self, data: &[T]) -> BufferAllocation<T> {
         let data = cast_slice(data);
 
-        for (slab_index, dirty, slab) in self
-            .slabs
+        let mut guard = self.slabs.lock();
+
+        for (slab_index, dirty, slab) in guard
             .iter_mut()
             .enumerate()
             .filter_map(|(i, (d, s))| s.as_mut().map(|s| (i, d, s)))
@@ -219,7 +186,7 @@ impl<T: Pod> BufferAllocator<T> {
         }
 
         let slab_size = u64::max(
-            settings.slab_size,
+            BUFFER_ALLOCATOR_SETTINGS.load().slab_size,
             (data.len() as u64).next_multiple_of(COPY_BUFFER_ALIGNMENT),
         );
 
@@ -227,11 +194,11 @@ impl<T: Pod> BufferAllocator<T> {
         let slab_allocation = slab.try_store(data).unwrap();
 
         let slab_index = if let Some(slab_index) = self.recycle.pop() {
-            self.slabs[slab_index] = (true, Some(slab));
+            guard[slab_index] = (true, Some(slab));
             slab_index
         } else {
-            self.slabs.push((true, Some(slab)));
-            self.slabs.len() - 1
+            guard.push((true, Some(slab)));
+            guard.len() - 1
         };
 
         BufferAllocation {
@@ -398,22 +365,6 @@ pub fn receive_sync_info<T: Pod + Send + Sync + 'static>(
     settings: Res<GpuBufferAllocatorSettings<T>>,
 ) {
     gpu_buffer_allocator.receive_sync_info(&device, &queue, &settings);
-}
-
-#[derive(Resource)]
-pub struct BufferAllocatorSettings<T> {
-    pub slab_size: u64,
-    _phantom: PhantomData<T>,
-}
-
-impl<T> Default for BufferAllocatorSettings<T> {
-    fn default() -> Self {
-        const MIB: u64 = 2u64.pow(20);
-        Self {
-            slab_size: 8 * MIB,
-            _phantom: PhantomData,
-        }
-    }
 }
 
 #[derive(Resource)]

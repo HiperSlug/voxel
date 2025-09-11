@@ -1,13 +1,12 @@
-use std::ops::Range;
-
-use bevy::math::IVec3;
+use bevy::math::{IVec3, UVec3};
 use bytemuck::{Pod, Zeroable};
 use enum_map::enum_map;
+use std::ops::Range;
 
-use crate::{block_library::BlockLibrary, chunk::ChunkOffset, math::signed_axis::*, voxel::Voxel};
+use crate::{block_library::BlockLibrary, math::signed_axis::*, voxel::Voxel};
 
 use super::{
-    Chunk, ChunkPos,
+    Chunk, chunk_origin,
     pad::{AREA, LEN, VOL},
     pad::{SHIFT_0, SHIFT_1, SHIFT_2, STRIDE_0, STRIDE_1, STRIDE_2},
 };
@@ -26,7 +25,7 @@ pub struct Mesher {
     quads: Vec<VoxelQuad>,
     visible_masks: Box<SignedAxisMap<[u64; AREA]>>,
     upward_merged: Box<[u8; LEN]>,
-    forward_merged: Box<[u8; AREA]>, 
+    forward_merged: Box<[u8; AREA]>,
 }
 
 impl Mesher {
@@ -119,7 +118,7 @@ impl Mesher {
     fn face_merging(
         &mut self,
         voxels: &[Option<Voxel>; VOL],
-        base_pos: IVec3,
+        chunk_origin: IVec3,
         block_library: &BlockLibrary,
     ) -> VoxelQuadOffsets {
         let mut offsets = [0; 7];
@@ -190,7 +189,7 @@ impl Mesher {
                                 self.forward_merged[vol_xy] = 0;
                                 self.upward_merged[vol_x] = 0;
 
-                                let pos = base_pos + IVec3::new(x, y, z);
+                                let pos = chunk_origin + IVec3::new(x, y, z);
                                 let texture_index = block_library[voxel].textures[signed_axis];
 
                                 let quad = VoxelQuad::new(pos, texture_index, w, h, signed_axis);
@@ -246,7 +245,7 @@ impl Mesher {
 
                                 self.forward_merged[vol_xy] = 0;
 
-                                let pos = base_pos + IVec3::new(x, y, z);
+                                let pos = chunk_origin + IVec3::new(x, y, z);
                                 let texture_index = block_library[voxel].textures[signed_axis];
 
                                 let quad = VoxelQuad::new(pos, texture_index, w, h, signed_axis);
@@ -300,7 +299,7 @@ impl Mesher {
 
                                 self.upward_merged[vol_x] = 0;
 
-                                let pos = base_pos + IVec3::new(x, y, z);
+                                let pos = chunk_origin + IVec3::new(x, y, z);
                                 let texture_index = block_library[voxel].textures[signed_axis];
 
                                 let quad = VoxelQuad::new(pos, texture_index, w, h, signed_axis);
@@ -319,7 +318,7 @@ impl Mesher {
     pub fn mesh(
         &mut self,
         chunk: &Chunk,
-        chunk_pos: ChunkPos,
+        chunk_pos: IVec3,
         block_library: &BlockLibrary,
     ) -> (&[VoxelQuad], VoxelQuadOffsets) {
         let Chunk {
@@ -328,11 +327,11 @@ impl Mesher {
             transparent_mask,
         } = chunk;
 
-        let base_pos = chunk_pos.as_voxel_pos().0;
+        let chunk_origin = chunk_origin(chunk_pos);
 
         self.face_culling(voxels, opaque_mask, transparent_mask);
 
-        let voxel_quad_offsets = self.face_merging(voxels, base_pos, block_library);
+        let voxel_quad_offsets = self.face_merging(voxels, chunk_origin, block_library);
 
         (&self.quads, voxel_quad_offsets)
     }
@@ -370,15 +369,15 @@ impl Chunk {
 
     pub fn update_masks(
         &mut self,
-        chunk_offset: ChunkOffset,
+        pos: UVec3,
         voxel_opt: Option<Voxel>,
         block_library: &BlockLibrary,
     ) {
-        let area_y = (chunk_offset.y as usize) << SHIFT_0;
-        let area_z = (chunk_offset.z as usize) << SHIFT_1;
+        let area_y = (pos.y as usize) << SHIFT_0;
+        let area_z = (pos.z as usize) << SHIFT_1;
         let area_yz = area_y | area_z;
 
-        let mask = !(1 << chunk_offset.x);
+        let mask = !(1 << pos.x);
 
         self.opaque_mask[area_yz] &= mask;
         self.transparent_mask[area_yz] &= mask;
@@ -387,16 +386,17 @@ impl Chunk {
             let is_transparent = block_library[voxel].is_transparent;
             let is_opaque = !is_transparent;
 
-            self.opaque_mask[area_yz] |= (is_opaque as u64) << chunk_offset.x;
-            self.transparent_mask[area_yz] |= (is_transparent as u64) << chunk_offset.x;
+            self.opaque_mask[area_yz] |= (is_opaque as u64) << pos.x;
+            self.transparent_mask[area_yz] |= (is_transparent as u64) << pos.x;
         }
     }
 }
 
 // This can be aligned to 8 bytes instead of 16 bytes by
-// storing the voxel_position (u6) and a chunk_index that
-// points to a chunk_pos (i32) in a storage buffer. However
-// at this point the complication is not worth it.
+// storing the `ChunkOffset` (`U6Vec3`) and a `chunk_index`
+// (`u16`) that points to a `ChunkPos` (`I26Vec3`) in a
+// storage buffer instead of the full `VoxelPos` (`IVec3`).
+// However at this point the complication is not worth it.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct VoxelQuad {
