@@ -136,9 +136,8 @@ mod slab {
         }
 
         pub fn flush(&mut self) -> Vec<WriteBufferArgs> {
-            // flag tells next allocation that its safe to flush the frees.
-            // this is doubly deferred because this runs on the extract 
-            // schedule which is supposed to be very fast.
+            // flag tells next allocation to flush the frees.
+            // just offloading the work to a less critical func.
             self.flush_free = true;
 
             take(&mut self.write_queue)

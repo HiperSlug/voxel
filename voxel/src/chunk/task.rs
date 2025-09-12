@@ -1,4 +1,4 @@
-use bevy::tasks::{AsyncComputeTaskPool, Task};
+use bevy::tasks::{block_on, poll_once, AsyncComputeTaskPool, Task};
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use std::{
@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     block_library::BlockLibrary,
-    chunk::{ChunkMap, ChunkMesh, ChunkPos}, render::buffer_allocator::BufferAllocator,
+    chunk::{ChunkMesh, ChunkPos}, render::buffer_allocator::BufferAllocator,
 };
 
 use super::{Chunk, Mesher, VoxelQuad};
@@ -22,16 +22,23 @@ struct MeshingTasks {
 }
 
 impl MeshingTasks {
-    pub fn task(&mut self, chunk_map: Arc<DashMap<ChunkPos, Chunk>>, chunk_pos: ChunkPos, buffer_allocator: Arc<Mutex<BufferAllocator<VoxelQuad>>>, block_library: Arc<BlockLibrary>) {
+    pub fn spawn_task(&mut self, chunk_map: Arc<DashMap<ChunkPos, Chunk>>, chunk_pos: ChunkPos, buffer_allocator: Arc<Mutex<BufferAllocator<VoxelQuad>>>, block_library: Arc<BlockLibrary>) {
         let pool = AsyncComputeTaskPool::get();
 
         let task = pool.spawn(async move { mesh_task(&chunk_map, chunk_pos, &buffer_allocator, &block_library) });
 
-        self.tasks.push(task);
+        self.tasks.push((chunk_pos, task));
     }
 
-    pub fn poll(&mut self) -> impl Iterator<Item = (ChunkPos, ChunkMesh)> {
-        self.tasks.dra
+    pub fn poll(&mut self, callback: impl Fn(ChunkPos, Option<ChunkMesh>)) {
+        self.tasks.retain_mut(|(chunk_pos, task)| {
+            if let Some(mesh_opt) = block_on(poll_once(task)) {
+                callback(*chunk_pos, mesh_opt);
+                false
+            } else {
+                true
+            }
+        });
     }
 }
 
