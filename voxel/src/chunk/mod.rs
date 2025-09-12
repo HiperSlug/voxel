@@ -12,7 +12,9 @@ use mesher::*;
 pub use space::*;
 pub use task::*;
 
-use crate::{block_library::BlockLibrary, render::buffer_allocator::BufferAllocation, voxel::Voxel};
+use crate::{
+    block_library::BlockLibrary, render::buffer_allocator::BufferAllocation, voxel::Voxel,
+};
 
 #[derive(Debug)]
 pub struct Chunk {

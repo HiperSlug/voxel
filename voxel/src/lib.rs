@@ -15,5 +15,3 @@ mod render;
 mod terrain;
 
 mod math;
-
-mod drain_filter;

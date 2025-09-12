@@ -14,7 +14,7 @@ ron = "0.10.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"
 walkdir = "2.5.0"
-dashmap = "6.1.0"
+dashmap = { version = "6.1.0", features = ["raw-api"] }
 crossbeam = "0.8.4"
 rayon = "1.11.0"
 bytemuck = "1.23.2"

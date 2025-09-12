@@ -1,14 +1,12 @@
-use bevy::tasks::{block_on, poll_once, AsyncComputeTaskPool, Task};
+use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, poll_once};
 use dashmap::DashMap;
 use parking_lot::Mutex;
-use std::{
-    cell::RefCell,
-    sync::Arc,
-};
+use std::{cell::RefCell, sync::Arc};
 
 use crate::{
     block_library::BlockLibrary,
-    chunk::{ChunkMesh, ChunkPos}, render::buffer_allocator::BufferAllocator,
+    chunk::{ChunkMesh, ChunkPos},
+    render::buffer_allocator::BufferAllocator,
 };
 
 use super::{Chunk, Mesher, VoxelQuad};
@@ -22,10 +20,18 @@ struct MeshingTasks {
 }
 
 impl MeshingTasks {
-    pub fn spawn_task(&mut self, chunk_map: Arc<DashMap<ChunkPos, Chunk>>, chunk_pos: ChunkPos, buffer_allocator: Arc<Mutex<BufferAllocator<VoxelQuad>>>, block_library: Arc<BlockLibrary>) {
+    pub fn spawn_task(
+        &mut self,
+        chunk_map: Arc<DashMap<ChunkPos, Chunk>>,
+        chunk_pos: ChunkPos,
+        buffer_allocator: Arc<Mutex<BufferAllocator<VoxelQuad>>>,
+        block_library: Arc<BlockLibrary>,
+    ) {
         let pool = AsyncComputeTaskPool::get();
 
-        let task = pool.spawn(async move { mesh_task(&chunk_map, chunk_pos, &buffer_allocator, &block_library) });
+        let task = pool.spawn(async move {
+            mesh_task(&chunk_map, chunk_pos, &buffer_allocator, &block_library)
+        });
 
         self.tasks.push((chunk_pos, task));
     }
@@ -42,7 +48,12 @@ impl MeshingTasks {
     }
 }
 
-fn mesh_task(chunk_map: &DashMap<ChunkPos, Chunk>, chunk_pos: ChunkPos, buffer_allocator: &Mutex<BufferAllocator<VoxelQuad>>, block_library: &BlockLibrary) -> Option<ChunkMesh> {
+fn mesh_task(
+    chunk_map: &DashMap<ChunkPos, Chunk>,
+    chunk_pos: ChunkPos,
+    buffer_allocator: &Mutex<BufferAllocator<VoxelQuad>>,
+    block_library: &BlockLibrary,
+) -> Option<ChunkMesh> {
     MESHER.with_borrow_mut(|mesher| {
         let Some(chunk) = chunk_map.get(&chunk_pos) else {
             return None;
