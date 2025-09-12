@@ -120,7 +120,6 @@ mod slab {
                 }
                 (Some(below), Some(above)) => {
                     below.join_between(data, len, above);
-
                     self.write_queue.remove(queue_index);
                 }
             }

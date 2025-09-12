@@ -12,7 +12,7 @@ use mesher::*;
 pub use space::*;
 pub use task::*;
 
-use crate::{block_library::BlockLibrary, voxel::Voxel};
+use crate::{block_library::BlockLibrary, render::buffer_allocator::BufferAllocation, voxel::Voxel};
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -47,3 +47,8 @@ impl Default for Chunk {
 }
 
 pub type ChunkMap<T> = Arc<DashMap<ChunkPos, T>>;
+
+pub struct ChunkMesh {
+    buffer_allocation: BufferAllocation<VoxelQuad>,
+    offsets: VoxelQuadOffsets,
+}

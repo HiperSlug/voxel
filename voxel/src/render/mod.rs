@@ -1,7 +1,6 @@
-mod buffer_allocator;
+pub mod buffer_allocator;
 mod draw;
 mod pipeline;
-mod vk;
 
 use bevy::{
     prelude::*,
