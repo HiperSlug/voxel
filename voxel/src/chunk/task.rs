@@ -1,15 +1,12 @@
-use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, poll_once};
-use dashmap::DashMap;
-use parking_lot::Mutex;
-use std::{cell::RefCell, sync::Arc};
-
-use crate::{
-    block_library::BlockLibrary,
-    chunk::{ChunkMesh, ChunkPos},
-    render::buffer_allocator::BufferAllocator,
+use bevy::{
+    render::renderer::{RenderDevice, RenderQueue},
+    tasks::{AsyncComputeTaskPool, Task, block_on, poll_once},
 };
+use std::cell::RefCell;
 
-use super::{Chunk, Mesher, VoxelQuad};
+use crate::{block_lib::BlockLibrary, render::alloc_buffer::ALLOC_BUFFER};
+
+use super::{ChunkMap, ChunkMesh, ChunkPos, Mesher};
 
 thread_local! {
     static MESHER: RefCell<Mesher> = RefCell::new(Mesher::new());
@@ -22,15 +19,33 @@ struct MeshingTasks {
 impl MeshingTasks {
     pub fn spawn_task(
         &mut self,
-        chunk_map: Arc<DashMap<ChunkPos, Chunk>>,
+        chunk_map: ChunkMap,
         chunk_pos: ChunkPos,
-        buffer_allocator: Arc<Mutex<BufferAllocator<VoxelQuad>>>,
-        block_library: Arc<BlockLibrary>,
+
+        block_library: BlockLibrary,
+
+        queue: RenderQueue,
+        device: RenderDevice,
     ) {
         let pool = AsyncComputeTaskPool::get();
 
         let task = pool.spawn(async move {
-            mesh_task(&chunk_map, chunk_pos, &buffer_allocator, &block_library)
+            MESHER.with_borrow_mut(|mesher| {
+                let Some(chunk) = chunk_map.get(&chunk_pos) else {
+                    return None;
+                };
+
+                mesher.clear();
+                let (quads, mut offsets) = mesher.mesh(&chunk, chunk_pos, &block_library);
+                let allocation = ALLOC_BUFFER.lock().store(quads, &queue, &device);
+
+                offsets.shift(allocation.offset());
+
+                Some(ChunkMesh {
+                    allocation,
+                    offsets,
+                })
+            })
         });
 
         self.tasks.push((chunk_pos, task));
@@ -46,28 +61,4 @@ impl MeshingTasks {
             }
         });
     }
-}
-
-fn mesh_task(
-    chunk_map: &DashMap<ChunkPos, Chunk>,
-    chunk_pos: ChunkPos,
-    buffer_allocator: &Mutex<BufferAllocator<VoxelQuad>>,
-    block_library: &BlockLibrary,
-) -> Option<ChunkMesh> {
-    MESHER.with_borrow_mut(|mesher| {
-        let Some(chunk) = chunk_map.get(&chunk_pos) else {
-            return None;
-        };
-
-        mesher.clear();
-        let (quads, mut offsets) = mesher.mesh(&chunk, chunk_pos, block_library);
-        let buffer_allocation = buffer_allocator.lock().store(quads);
-
-        offsets.shift(buffer_allocation.offset());
-
-        Some(ChunkMesh {
-            buffer_allocation,
-            offsets,
-        })
-    })
 }

@@ -1,17 +1,35 @@
+mod block_lib;
 mod chunk;
-
-mod voxel;
-
 mod generator;
-
+mod math;
+mod render;
+mod terrain;
 mod viewer;
-
+mod voxel;
 mod voxel_volume;
 
-mod block_library;
+// use std::{ops::Deref, sync::Arc};
+// use bevy::prelude::*;
 
-mod render;
+// #[derive(Resource, Default)]
+// pub struct ArcResource<T>(pub Arc<T>);
 
-mod terrain;
+// impl<T> ArcResource<T> {
+// 	pub fn new(value: T) -> Self {
+// 		Self(Arc::new(value))
+// 	}
+// }
 
-mod math;
+// impl<T> Deref for ArcResource<T> {
+// 	type Target = T;
+
+// 	fn deref(&self) -> &Self::Target {
+// 		&*self.0
+// 	}
+// }
+
+// impl<T> Clone for ArcResource<T> {
+// 	fn clone(&self) -> Self {
+// 		ArcResource(self.0.clone())
+// 	}
+// }

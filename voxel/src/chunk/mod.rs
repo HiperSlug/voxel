@@ -3,7 +3,7 @@ pub mod mesher;
 pub mod space;
 pub mod task;
 
-use bevy::math::UVec3;
+use bevy::prelude::*;
 use dashmap::DashMap;
 use pad::{AREA, VOL};
 use std::sync::Arc;
@@ -12,11 +12,8 @@ use mesher::*;
 pub use space::*;
 pub use task::*;
 
-use crate::{
-    block_library::BlockLibrary, render::buffer_allocator::BufferAllocation, voxel::Voxel,
-};
+use crate::{block_lib::BlockLibrary, render::alloc_buffer::Allocation, voxel::Voxel};
 
-#[derive(Debug)]
 pub struct Chunk {
     pub voxels: [Option<Voxel>; VOL],
     pub opaque_mask: [u64; AREA],
@@ -48,9 +45,10 @@ impl Default for Chunk {
     }
 }
 
-pub type ChunkMap<T> = Arc<DashMap<ChunkPos, T>>;
+#[derive(Component, Default, Clone, Deref)]
+pub struct ChunkMap(pub Arc<DashMap<ChunkPos, Chunk>>);
 
 pub struct ChunkMesh {
-    buffer_allocation: BufferAllocation<VoxelQuad>,
+    allocation: Allocation<VoxelQuad>,
     offsets: VoxelQuadOffsets,
 }

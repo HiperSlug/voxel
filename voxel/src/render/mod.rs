@@ -1,4 +1,4 @@
-pub mod buffer_allocator;
+pub mod alloc_buffer;
 mod draw;
 mod pipeline;
 

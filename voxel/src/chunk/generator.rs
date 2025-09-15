@@ -3,7 +3,7 @@ use fastnoise_lite::FastNoiseLite;
 use nonmax::NonMaxU16;
 use std::sync::LazyLock;
 
-use crate::{block_library::BlockLibrary, voxel::Voxel};
+use crate::{block_lib::BlockLibrary, voxel::Voxel};
 
 use super::{
     Chunk, chunk_origin,

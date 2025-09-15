@@ -3,7 +3,7 @@ use bytemuck::{Pod, Zeroable};
 use enum_map::enum_map;
 use std::ops::Range;
 
-use crate::{block_library::BlockLibrary, math::signed_axis::*, voxel::Voxel};
+use crate::{block_lib::BlockLibrary, math::signed_axis::*, voxel::Voxel};
 
 use super::{
     Chunk, chunk_origin,

@@ -1,6 +1,10 @@
 use crate::math::signed_axis::SignedAxisMap;
-use bevy::{math::bounding::Aabb3d, prelude::*};
-use std::collections::HashMap;
+use bevy::{
+    ecs::intern::{Interned, Interner},
+    math::bounding::Aabb3d,
+    platform::collections::HashMap,
+    prelude::*,
+};
 
 use super::intermediate::IntermediateBlock;
 
@@ -15,7 +19,8 @@ pub struct Block {
 impl Block {
     pub fn from_intermediate(
         intermediate: &IntermediateBlock,
-        texture_name_to_index: &HashMap<String, u32>,
+        tex_name_to_index: &HashMap<Interned<str>, u32>,
+        tex_interner: &Interner<str>,
     ) -> Option<Self> {
         let IntermediateBlock {
             display_name,
@@ -24,7 +29,9 @@ impl Block {
             textures: texture_names,
         } = intermediate.clone();
 
-        let opt_textures = texture_names.map(|_, s| texture_name_to_index.get(&s));
+        let texture_names = texture_names.map(|_, n| tex_interner.intern(&*n));
+
+        let opt_textures = texture_names.map(|_, s| tex_name_to_index.get(&s));
 
         if opt_textures.iter().any(|(_, opt)| opt.is_none()) {
             return None;

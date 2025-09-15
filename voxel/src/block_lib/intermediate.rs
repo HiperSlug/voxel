@@ -1,6 +1,6 @@
-use crate::math::signed_axis::SignedAxisMap;
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
+    ecs::intern::{Interned, Interner},
     math::bounding::Aabb3d,
     prelude::*,
     tasks::ConditionalSendFuture,
@@ -9,23 +9,26 @@ use serde::{Deserialize, Serialize};
 use serde_json::de::from_slice as json_de;
 use walkdir::WalkDir;
 
-#[derive(Debug, Deserialize, Serialize)]
-struct BlockLibraryConfig {
+use crate::math::signed_axis::SignedAxisMap;
+
+#[derive(Deserialize, Serialize)]
+struct BlockLibConfig {
     libraries: Vec<String>,
     texture_size: UVec2,
 }
 
-#[derive(Debug, Asset, TypePath)]
-pub struct IntermediateBlockLibrary {
-    pub blocks: Vec<(String, Handle<IntermediateBlock>)>,
-    pub textures: Vec<(String, Handle<Image>)>,
+#[derive(Asset, TypePath)]
+pub struct IntermediateBlockLib {
+    pub blocks: Vec<(Interned<str>, Handle<IntermediateBlock>)>,
+    pub textures: Vec<(Interned<str>, Handle<Image>)>,
+
     pub texture_size: UVec2,
 }
 
-pub struct IntermediateBlockLibraryLoader;
+pub struct IntermediateBlockLibLoader;
 
-impl AssetLoader for IntermediateBlockLibraryLoader {
-    type Asset = IntermediateBlockLibrary;
+impl AssetLoader for IntermediateBlockLibLoader {
+    type Asset = IntermediateBlockLib;
     type Error = anyhow::Error;
     type Settings = ();
 
@@ -43,7 +46,7 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
-            let BlockLibraryConfig {
+            let BlockLibConfig {
                 libraries,
                 texture_size,
             } = json_de(&bytes)?;
@@ -51,16 +54,17 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
             let mut blocks = Vec::new();
             let mut textures = Vec::new();
 
-            for library in libraries {
-                fn push_names_and_handles<T: Asset>(
-                    vec: &mut Vec<(String, Handle<T>)>,
+            let block_interner = Interner::new();
+            let tex_interner = Interner::new();
+
+            for lib_name in libraries {
+                fn push_names_and_handles<A: Asset>(
+                    namespace: &str,
+                    vec: &mut Vec<(String, Handle<A>)>,
                     path: &str,
                     load_context: &mut LoadContext,
                 ) {
-                    for result in WalkDir::new(path)
-                        .into_iter()
-                        .filter_entry(|e| e.file_type().is_file())
-                    {
+                    for result in WalkDir::new(path) {
                         let dir = match result {
                             Ok(dir) => dir,
                             Err(e) => {
@@ -68,6 +72,10 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
                                 continue;
                             }
                         };
+
+                        if !dir.file_type().is_file() {
+                            continue;
+                        }
 
                         let path = dir.path();
                         let Some(os_name) = path.file_stem() else {
@@ -80,19 +88,37 @@ impl AssetLoader for IntermediateBlockLibraryLoader {
                             continue;
                         };
 
+                        let name = &*format!("{namespace}::{name}");
+                        let interned_name = interner.intern(name);
+
                         let handle = load_context.load(path);
-                        vec.push((name.to_string(), handle));
+
+                        vec.push((interned_name, handle));
                     }
                 }
 
-                let blocks_path = format!("block_libs/{library}/blocks");
-                let textures_path = format!("block_libs/{library}/textures");
+                let blocks_path = format!("block_libs/{lib_name}/blocks");
+                let textures_path = format!("block_libs/{lib_name}/textures");
 
-                push_names_and_handles(&mut blocks, &blocks_path, load_context);
-                push_names_and_handles(&mut textures, &textures_path, load_context);
+                push_names_and_handles(
+                    &lib_name,
+                    &block_interner,
+                    &mut blocks,
+                    &blocks_path,
+                    load_context,
+                );
+                push_names_and_handles(
+                    &lib_name,
+                    &tex_interner,
+                    &mut textures,
+                    &textures_path,
+                    load_context,
+                );
             }
 
-            Ok(IntermediateBlockLibrary {
+            Ok(IntermediateBlockLib {
+                block_interner,
+                tex_interner,
                 blocks,
                 textures,
                 texture_size,

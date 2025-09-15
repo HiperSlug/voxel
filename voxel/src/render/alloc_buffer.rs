@@ -1,8 +1,7 @@
 use bevy::{
-    platform::collections::HashMap,
     prelude::*,
     render::{
-        RenderApp, define_atomic_id,
+        RenderApp,
         render_resource::{
             Buffer, BufferAddress, BufferDescriptor, BufferUsages, COPY_BUFFER_ALIGNMENT,
         },
@@ -13,102 +12,121 @@ use bytemuck::{Pod, cast_slice};
 use core::slice;
 use offset_allocator as alloc;
 use parking_lot::Mutex;
-use std::{marker::PhantomData, sync::Arc};
+use slotmap::{SlotMap, new_key_type};
+use std::{marker::PhantomData, mem::MaybeUninit, sync::Arc};
 
-define_atomic_id!(SlabId);
-
-#[derive(Resource, Default, Clone, Deref)]
-pub struct AllocBuffer(pub Arc<Mutex<InnerAllocBuffer>>);
-
-#[derive(Default)]
-pub struct InnerAllocBuffer {
-    slabs: HashMap<SlabId, Slab>,
-    layouts: HashMap<SlabLayout, Vec<SlabId>>,
+new_key_type! {
+    struct SlabKey;
 }
 
-impl InnerAllocBuffer {
-    pub fn store<T: Pod>(
+#[derive(Resource, Deref)]
+pub struct AllocBuffer<T>(pub Arc<Mutex<InnerAllocBuffer<T>>>);
+
+impl<T> Clone for AllocBuffer<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> AllocBuffer<T> {
+    pub fn new(settings: AllocBufferSettings) -> Self {
+        Self(Arc::new(Mutex::new(InnerAllocBuffer::new(settings))))
+    }
+}
+
+pub struct InnerAllocBuffer<T> {
+    slabs: SlotMap<SlabKey, Slab>,
+    pub settings: AllocBufferSettings,
+
+    _marker: PhantomData<T>,
+}
+
+impl<T> InnerAllocBuffer<T> {
+    pub fn new(settings: AllocBufferSettings) -> Self {
+        Self {
+            settings,
+            slabs: default(),
+            _marker: default(),
+        }
+    }
+}
+
+impl<T: Pod> InnerAllocBuffer<T> {
+    pub fn store(
         &mut self,
         data: &[T],
         queue: &RenderQueue,
         device: &RenderDevice,
-        settings: &AllocBufferSettings,
     ) -> Allocation<T> {
         let bytes = {
-            let mut bytes = cast_slice::<_, u8>(data);
+            let mut bytes = cast_slice(data);
             if !size_of::<T>().is_multiple_of(COPY_BUFFER_ALIGNMENT as usize) {
                 bytes = unsafe {
                     slice::from_raw_parts(
                         bytes.as_ptr(),
                         bytes.len().next_multiple_of(COPY_BUFFER_ALIGNMENT as usize),
                     )
-                }
+                };
             }
             bytes
         };
 
-        let slab_layout = SlabLayout::new::<T>();
-        let slab_ids = self.layouts.entry(slab_layout).or_default();
-
-        if settings.large_threshold >= bytes.len() {
-            for slab_id in slab_ids.iter() {
-                let slab = self.slabs.get_mut(slab_id).unwrap();
-
+        if self.settings.large_threshold >= bytes.len() {
+            for (slab_key, slab) in &mut self.slabs {
                 if let Some(allocation) = slab.try_store(bytes, queue) {
                     return Allocation {
                         allocation,
-                        slab_id: *slab_id,
-                        _marker: PhantomData,
+                        slab_key,
+                        _marker: default(),
                     };
                 };
             }
         }
 
-        let slab_id = SlabId::new();
+        let mut allocation = MaybeUninit::uninit();
 
-        #[cfg(debug_assertions)]
-        let label = Some(&*format!("Slab {slab_id:?}"));
-        #[cfg(not(debug_assertions))]
-        let label = None;
+        let slab_key = self.slabs.insert_with_key(|k| {
+            #[cfg(debug_assertions)]
+            let label = Some(&*format!("Slab {k:?}"));
+            #[cfg(not(debug_assertions))]
+            let label = None;
 
-        let size = settings.slab_size.max(bytes.len() as u32);
+            let size = self.settings.slab_size.max(bytes.len() as u32);
 
-        let mut slab = Slab::new(device, label, size, settings.usage);
+            let mut slab = Slab::new(device, label, size, self.settings.usage);
 
-        let allocation = slab.try_store(bytes, queue).unwrap();
+            allocation = MaybeUninit::new(slab.try_store(bytes, queue).unwrap());
 
-        self.slabs.insert(slab_id, slab);
-        slab_ids.push(slab_id);
+            slab
+        });
+
+        let allocation = unsafe { allocation.assume_init() };
 
         Allocation {
             allocation,
-            slab_id,
-            _marker: PhantomData,
+            slab_key,
+            _marker: default(),
         }
     }
 
-    pub fn free<T>(
+    pub fn free(
         &mut self,
         Allocation {
             allocation,
-            slab_id,
+            slab_key,
             ..
         }: Allocation<T>,
     ) {
-        let slab = self.slabs.get_mut(&slab_id).unwrap();
+        let slab = &mut self.slabs[slab_key];
         slab.free(allocation);
 
         if slab.is_empty() {
-            self.slabs.remove(&slab_id);
-
-            let slab_layout = SlabLayout::new::<T>();
-            let layout = self.layouts.get_mut(&slab_layout).unwrap();
-            layout.retain(|s| *s != slab_id);
+            self.slabs.remove(slab_key);
         }
     }
 
-    pub fn slabs(&self) -> &HashMap<SlabId, Slab> {
-        &self.slabs
+    pub fn iter(&self) -> impl Iterator<Item = (SlabKey, &Slab)> {
+        self.slabs.iter()
     }
 }
 
@@ -143,10 +161,6 @@ impl Slab {
         self.allocator.free(allocation);
     }
 
-    pub fn reset(&mut self) {
-        self.allocator.reset();
-    }
-
     pub fn is_empty(&self) -> bool {
         self.allocator.storage_report().total_free_space as BufferAddress == self.buffer.size()
     }
@@ -158,7 +172,7 @@ impl Slab {
 
 pub struct Allocation<T> {
     allocation: alloc::Allocation,
-    slab_id: SlabId,
+    slab_key: SlabKey,
     _marker: PhantomData<T>,
 }
 
@@ -171,21 +185,19 @@ impl<T> Allocation<T> {
         self.byte_offset() / size_of::<T>() as u32
     }
 
-    pub fn slab_id(&self) -> SlabId {
-        self.slab_id
+    pub fn slab_key(&self) -> SlabKey {
+        self.slab_key
     }
 }
 
-#[derive(Resource, Default, Clone, Deref)]
-pub struct AllocBufferSettings(pub Arc<InnerAllocBufferSettings>);
-
-pub struct InnerAllocBufferSettings {
+#[derive(Clone, Copy)]
+pub struct AllocBufferSettings {
     pub slab_size: u32,
     pub large_threshold: usize,
     pub usage: BufferUsages,
 }
 
-impl Default for InnerAllocBufferSettings {
+impl Default for AllocBufferSettings {
     fn default() -> Self {
         const MIB: u32 = 2u32.pow(20);
         Self {
@@ -196,30 +208,27 @@ impl Default for InnerAllocBufferSettings {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Clone, Copy)]
-struct SlabLayout {
-    size_of: u16,
+#[derive(Default)]
+pub struct AllocBufferPlugin<T> {
+    pub settings: AllocBufferSettings,
+    _marker: PhantomData<T>,
 }
 
-impl SlabLayout {
-    const fn new<T>() -> Self {
+impl<T> AllocBufferPlugin<T> {
+    pub fn new(settings: AllocBufferSettings) -> Self {
         Self {
-            size_of: size_of::<T>() as u16,
+            settings,
+            _marker: default(),
         }
     }
 }
 
-pub struct AllocBufferPlugin;
-
-impl Plugin for AllocBufferPlugin {
+impl<T: Send + Sync + 'static> Plugin for AllocBufferPlugin<T> {
     fn build(&self, app: &mut App) {
-        let alloc_buffer = AllocBuffer::default();
-        let alloc_buffer_settings = AllocBufferSettings::default();
+        let alloc_buffer = AllocBuffer::<T>::new(self.settings);
 
-        app.insert_resource(alloc_buffer.clone())
-            .insert_resource(alloc_buffer_settings.clone())
-            .sub_app_mut(RenderApp)
-            .insert_resource(alloc_buffer)
-            .insert_resource(alloc_buffer_settings);
+        app.insert_resource(alloc_buffer.clone());
+
+        app.sub_app_mut(RenderApp).insert_resource(alloc_buffer);
     }
 }
