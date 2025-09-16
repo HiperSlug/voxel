@@ -4,7 +4,7 @@ use bevy::{
 };
 use std::cell::RefCell;
 
-use crate::{block_lib::BlockLibrary, render::alloc_buffer::ALLOC_BUFFER};
+use crate::{block_lib::BlockLibrary, chunk::mesher::VoxelQuad, render::alloc_buffer::AllocBuffer};
 
 use super::{ChunkMap, ChunkMesh, ChunkPos, Mesher};
 
@@ -22,6 +22,8 @@ impl MeshingTasks {
         chunk_map: ChunkMap,
         chunk_pos: ChunkPos,
 
+        alloc_buffer: AllocBuffer<VoxelQuad>,
+
         block_library: BlockLibrary,
 
         queue: RenderQueue,
@@ -37,7 +39,7 @@ impl MeshingTasks {
 
                 mesher.clear();
                 let (quads, mut offsets) = mesher.mesh(&chunk, chunk_pos, &block_library);
-                let allocation = ALLOC_BUFFER.lock().store(quads, &queue, &device);
+                let allocation = alloc_buffer.lock().store(quads, &queue, &device);
 
                 offsets.shift(allocation.offset());
 

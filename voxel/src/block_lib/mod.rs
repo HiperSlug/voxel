@@ -2,31 +2,33 @@ pub mod block;
 mod intermediate;
 mod texture_array;
 
-use arc_swap::ArcSwap;
 use bevy::{platform::collections::HashMap, prelude::*};
 pub use block::Block;
 use intermediate::{IntermediateBlock, IntermediateBlockLib};
-use std::{
-    ops::Index,
-    sync::{LazyLock, OnceLock},
-};
-use string_interner::{
-    DefaultSymbol, StringInterner,
-    backend::{BucketBackend, BufferBackend},
-};
+use std::{ops::Index, sync::Arc};
+use string_interner::{DefaultSymbol, StringInterner, backend::BufferBackend};
 
 use crate::voxel::Voxel;
 
-pub static BLOCK_LIBRARY: OnceLock<ArcSwap<BlockLibrary>> = OnceLock::new();
+pub type Interner = StringInterner<BufferBackend>;
 
-pub struct BlockLibrary {
-    pub blocks: Vec<Block>,
-    pub names: Vec<DefaultSymbol>,
-    pub blocks_map: HashMap<DefaultSymbol, Block>,
-    pub interner: StringInterner<BufferBackend>,
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Identifier {
+    pub namespace: DefaultSymbol,
+    pub name: DefaultSymbol,
 }
 
-impl BlockLibrary {
+#[derive(Resource, Clone, Deref)]
+pub struct BlockLibrary(pub Arc<InnerBlockLibrary>);
+
+pub struct InnerBlockLibrary {
+    pub blocks: Vec<Block>,
+    pub identifiers: Vec<Identifier>,
+    pub blocks_map: HashMap<Identifier, usize>,
+    pub interner: Interner,
+}
+
+impl InnerBlockLibrary {
     pub fn build(
         intermediate: &IntermediateBlockLib,
         image_assets: ResMut<Assets<Image>>,
@@ -34,51 +36,57 @@ impl BlockLibrary {
         // material_assets: ResMut<Assets<TextureArrayMaterial>>,
     ) -> Self {
         let IntermediateBlockLib {
-            texture_size,
-            textures,
             blocks: intermediate_blocks,
-            block_interner,
-            tex_interner,
+            textures,
+            texture_size,
+            interner,
         } = intermediate;
 
-        let (tex_name_to_index, image) =
+        let (identifier_to_index, image) =
             texture_array::build(textures, *texture_size, image_assets);
 
         let mut blocks = Vec::new();
-        let mut names = Vec::new();
+        let mut identifiers = Vec::new();
         let mut blocks_map = HashMap::new();
 
-        for (name, handle) in intermediate_blocks {
-            let Some(intermediate) = block_assets.get(handle) else {
-                error!("IntermediateBlock {name:?} not yet loaded");
-                continue;
-            };
+        for (identifier, handle) in intermediate_blocks {
+            let intermediate = block_assets.get(handle).unwrap();
 
             let Some(block) =
-                Block::from_intermediate(intermediate, &tex_name_to_index, tex_interner)
+                Block::from_intermediate(intermediate, &identifier_to_index, interner)
             else {
                 error!("IntermediateBlock {name:?} has invalid texture");
                 continue;
             };
 
-            blocks.push(block.clone());
-            names.push(*name);
-            blocks_map.insert(*name, block);
+            let index = blocks.len();
+
+            blocks.push(block);
+            identifiers.push(*identifier);
+            blocks_map.insert(*identifier, index);
         }
 
         Self {
             blocks,
+            identifiers,
             blocks_map,
-            names,
-            block_interner: *block_interner,
+            interner: interner.clone(),
         }
     }
 }
 
-impl Index<Voxel> for BlockLibrary {
+impl Index<Voxel> for InnerBlockLibrary {
     type Output = Block;
 
     fn index(&self, index: Voxel) -> &Self::Output {
         &self.blocks[index.0.get() as usize]
+    }
+}
+
+impl Index<Name> for InnerBlockLibrary {
+    type Output = Block;
+
+    fn index(&self, index: Name) -> &Self::Output {
+        &self.blocks[*self.blocks_map.get(&index).unwrap()]
     }
 }

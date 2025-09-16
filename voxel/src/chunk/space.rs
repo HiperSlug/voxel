@@ -17,6 +17,7 @@ pub mod pad {
     pub const STRIDE_1: usize = 1 << SHIFT_1;
     pub const STRIDE_2: usize = 1 << SHIFT_2;
 
+    #[inline]
     pub fn linearize<T>(p: T) -> usize
     where
         T: Into<[u32; 3]>,
@@ -24,6 +25,7 @@ pub mod pad {
         Shape::linearize(p.into()) as usize
     }
 
+    #[inline]
     pub fn delinearize<T>(i: usize) -> T
     where
         T: From<[u32; 3]>,
@@ -33,8 +35,6 @@ pub mod pad {
 }
 
 pub mod unpad {
-    use crate::voxel::WORLD_VOXEL_LEN;
-
     use super::pad::{
         LEN as PAD_LEN, STRIDE_0, STRIDE_1, STRIDE_2, delinearize as pad_delinearize,
         linearize as pad_linearize,
@@ -44,11 +44,10 @@ pub mod unpad {
     pub const AREA: usize = LEN.pow(2);
     pub const VOL: usize = LEN.pow(3);
 
-    pub const WORLD_LEN: f32 = LEN as f32 * WORLD_VOXEL_LEN;
-
     /// `pad_linearize([1, 1, 1])`
     const INDEX_PADDING: usize = STRIDE_0 + STRIDE_1 + STRIDE_2;
 
+    #[inline]
     pub fn linearize<T>(p: T) -> usize
     where
         T: Into<[u32; 3]>,
@@ -56,6 +55,7 @@ pub mod unpad {
         pad_linearize(p) + INDEX_PADDING
     }
 
+    #[inline]
     pub fn delinearize<T>(i: usize) -> T
     where
         T: From<[u32; 3]>,
@@ -65,10 +65,10 @@ pub mod unpad {
 }
 
 use bevy::math::IVec3;
-pub use unpad::{LEN as CHUNK_LEN, WORLD_LEN as WORLD_CHUNK_LEN};
 
 pub type ChunkPos = IVec3;
 
-pub const fn chunk_origin(chunk_pos: IVec3) -> IVec3 {
-    chunk_pos.wrapping_mul(IVec3::splat(CHUNK_LEN as i32))
+#[inline]
+pub const fn chunk_origin(chunk_pos: ChunkPos) -> IVec3 {
+    chunk_pos.wrapping_mul(IVec3::splat(unpad::LEN as i32))
 }

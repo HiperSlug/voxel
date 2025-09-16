@@ -1,15 +1,17 @@
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
-    ecs::intern::{Interned, Interner},
     math::bounding::Aabb3d,
     prelude::*,
     tasks::ConditionalSendFuture,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_slice as json_de;
+use string_interner::DefaultSymbol;
 use walkdir::WalkDir;
 
 use crate::math::signed_axis::SignedAxisMap;
+
+use super::{Identifier, Interner};
 
 #[derive(Deserialize, Serialize)]
 struct BlockLibConfig {
@@ -19,9 +21,9 @@ struct BlockLibConfig {
 
 #[derive(Asset, TypePath)]
 pub struct IntermediateBlockLib {
-    pub blocks: Vec<(Interned<str>, Handle<IntermediateBlock>)>,
-    pub textures: Vec<(Interned<str>, Handle<Image>)>,
-
+    pub interner: Interner,
+    pub blocks: Vec<(Identifier, Handle<IntermediateBlock>)>,
+    pub textures: Vec<(Identifier, Handle<Image>)>,
     pub texture_size: UVec2,
 }
 
@@ -54,74 +56,35 @@ impl AssetLoader for IntermediateBlockLibLoader {
             let mut blocks = Vec::new();
             let mut textures = Vec::new();
 
-            let block_interner = Interner::new();
-            let tex_interner = Interner::new();
+            let mut interner = Interner::new();
 
             for lib_name in libraries {
-                fn push_names_and_handles<A: Asset>(
-                    namespace: &str,
-                    vec: &mut Vec<(String, Handle<A>)>,
-                    path: &str,
-                    load_context: &mut LoadContext,
-                ) {
-                    for result in WalkDir::new(path) {
-                        let dir = match result {
-                            Ok(dir) => dir,
-                            Err(e) => {
-                                warn!("Error {e} walking {path}");
-                                continue;
-                            }
-                        };
-
-                        if !dir.file_type().is_file() {
-                            continue;
-                        }
-
-                        let path = dir.path();
-                        let Some(os_name) = path.file_stem() else {
-                            warn!("Nameless at {path:?} skipping");
-                            continue;
-                        };
-
-                        let Some(name) = os_name.to_str() else {
-                            warn!("Invalid utf-8 name at {path:?} skipping");
-                            continue;
-                        };
-
-                        let name = &*format!("{namespace}::{name}");
-                        let interned_name = interner.intern(name);
-
-                        let handle = load_context.load(path);
-
-                        vec.push((interned_name, handle));
-                    }
-                }
+                let namespace = interner.get_or_intern(&lib_name);
 
                 let blocks_path = format!("block_libs/{lib_name}/blocks");
                 let textures_path = format!("block_libs/{lib_name}/textures");
 
                 push_names_and_handles(
-                    &lib_name,
-                    &block_interner,
+                    namespace,
                     &mut blocks,
                     &blocks_path,
                     load_context,
+                    &mut interner,
                 );
                 push_names_and_handles(
-                    &lib_name,
-                    &tex_interner,
+                    namespace,
                     &mut textures,
                     &textures_path,
                     load_context,
+                    &mut interner,
                 );
             }
 
             Ok(IntermediateBlockLib {
-                block_interner,
-                tex_interner,
                 blocks,
                 textures,
                 texture_size,
+                interner,
             })
         }
     }
@@ -149,10 +112,10 @@ impl AssetLoader for IntermediateBlockLoader {
 
     fn load(
         &self,
-        reader: &mut dyn bevy::asset::io::Reader,
+        reader: &mut dyn Reader,
         _: &Self::Settings,
-        _: &mut bevy::asset::LoadContext,
-    ) -> impl bevy::tasks::ConditionalSendFuture<Output = std::result::Result<Self::Asset, Self::Error>>
+        _: &mut LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>>
     {
         async move {
             let mut buffer = Vec::new();
@@ -160,5 +123,47 @@ impl AssetLoader for IntermediateBlockLoader {
 
             Ok(json_de(&buffer)?)
         }
+    }
+}
+
+#[inline]
+fn push_names_and_handles<A: Asset>(
+    namespace: DefaultSymbol,
+    vec: &mut Vec<(Identifier, Handle<A>)>,
+    path: &str,
+    load_context: &mut LoadContext,
+    interner: &mut Interner,
+) {
+    for result in WalkDir::new(path) {
+        let dir = match result {
+            Ok(dir) => dir,
+            Err(e) => {
+                warn!("Error {e} walking {path}");
+                continue;
+            }
+        };
+
+        if !dir.file_type().is_file() {
+            continue;
+        }
+
+        let path = dir.path();
+        let Some(os_name) = path.file_stem() else {
+            warn!("Nameless at {path:?} skipping");
+            continue;
+        };
+
+        let Some(name) = os_name.to_str() else {
+            warn!("Invalid utf-8 name at {path:?} skipping");
+            continue;
+        };
+
+        let name = interner.get_or_intern(name);
+
+        let identifier = Identifier { namespace, name };
+
+        let handle = load_context.load(path);
+
+        vec.push((identifier, handle));
     }
 }

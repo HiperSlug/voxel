@@ -9,5 +9,5 @@ opt-level = 1
 opt-level = 3
 
 [workspace.dependencies]
-bevy = "0.16.1"
+bevy = "0.17.0-rc.1"
 bevy_flycam = "0.16.1"

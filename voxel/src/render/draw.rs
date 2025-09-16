@@ -1,26 +1,155 @@
 use bevy::{
-    ecs::{
+    core_pipeline::core_3d::Transparent3d, ecs::{
         query::ROQueryItem,
         system::{
-            SystemParamItem,
-            lifetimeless::{Read, SRes},
+            lifetimeless::{Read, SRes}, SystemParamItem
         },
-    },
-    pbr::{SetMeshBindGroup, SetMeshViewBindGroup},
-    prelude::*,
-    render::{
-        render_phase::{
-            PhaseItem, RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass,
-        },
-        render_resource::ShaderType,
-    },
+    }, mesh::{MeshVertexBufferLayoutRef, VertexBufferLayout, VertexFormat}, pbr::{MeshPipeline, MeshPipelineKey, RenderMeshInstances, SetMeshBindGroup, SetMeshViewBindGroup}, prelude::*, render::{
+        mesh::RenderMesh, render_asset::RenderAssets, render_phase::{
+            AddRenderCommand, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass, ViewSortedRenderPhases
+        }, render_resource::{PipelineCache, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipeline, SpecializedMeshPipelineError, SpecializedMeshPipelines, VertexAttribute, VertexStepMode}, sync_world::MainEntity, view::ExtractedView, Render, RenderApp, RenderStartup, RenderSystems
+    }
 };
 use bytemuck::{Pod, Zeroable};
 
 use crate::{
     chunk::VoxelQuad,
-    render::{BaseQuadBuffer, IndirectTerrainBuffers, alloc_buffer::GpuBufferAllocator},
+    render::{alloc_buffer::AllocBufferPlugin, BaseQuadBuffer, IndirectTerrainBuffers},
 };
+
+const SHADER_ASSET_PATH: &str = "";
+
+struct CustomMaterialPlugin;
+
+impl Plugin for CustomMaterialPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(AllocBufferPlugin::<VoxelQuad>::default())
+            .sub_app_mut(RenderApp)
+            .add_render_command()
+            .add_systems(RenderStartup, todo!()) //init custom pipeline
+            .add_systems(Render, (
+                queue_custom.in_set(RenderSystems::QueueMeshes),
+                prepare_instance_buffers.in_set(RenderSystems::PrepareResources)
+            ))
+            ;
+            
+    }
+}
+
+// ill unmod later
+use pipeline::*;
+mod pipeline {
+    use super::*;
+
+    #[derive(Resource)]
+    pub struct CustomPipeline {
+        shader: Handle<Shader>,
+        mesh_pipeline: MeshPipeline,
+    }
+
+    pub fn init_custom_pipeline(
+        mut commands: Commands,
+        asset_server: Res<AssetServer>,
+        mesh_pipeline: Res<MeshPipeline>,
+    ) {
+        commands.insert_resource(CustomPipeline {
+            shader: asset_server.load(SHADER_ASSET_PATH),
+            mesh_pipeline: mesh_pipeline.clone(),
+        })
+    }
+
+    impl SpecializedMeshPipeline for CustomPipeline {
+        type Key = MeshPipelineKey;
+        
+        fn specialize(
+            &self,
+            key: Self::Key,
+            layout: &MeshVertexBufferLayoutRef,
+        ) -> Result<RenderPipelineDescriptor, SpecializedMeshPipelineError> {
+            let mut descriptor = self.mesh_pipeline.specialize(key, layout)?;
+
+            descriptor.vertex.buffers.push(VertexBufferLayout {
+                array_stride: size_of::<VoxelQuad>() as u64,
+                step_mode: VertexStepMode::Instance,
+                attributes: vec![
+                    // pos: IVec3
+                    VertexAttribute {
+                        format: VertexFormat::Sint32x3,
+                        offset: 0,
+                        shader_location: 3,
+                    },
+                    // data: { width: u6, height: u6, tex_index: u16, signed_axis: u3 }
+                    VertexAttribute {
+                        format: VertexFormat::Uint32,
+                        offset: VertexFormat::Sint32x3.size(),
+                        shader_location: 4,
+                    },
+                ]
+            });
+
+            descriptor.vertex.shader = self.shader.clone();
+            descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
+
+            // as long as this is a specilized mesh pipeline I cannot, for example, change PrimitiveState to Strips.
+
+            Ok(descriptor)
+        }
+    }
+}
+
+
+// enqueues all PhaseItems
+fn queue_custom(
+    transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
+    custom_pipeline: Res<CustomPipeline>,
+    mut pipelines: ResMut<SpecializedMeshPipelines<CustomPipeline>>,
+    pipeline_cache: Res<PipelineCache>,
+    meshes: Res<RenderAssets<RenderMesh>>,
+    render_mesh_instances: Res<RenderMeshInstances>,
+    material_meshes: Query<(Entity, &MainEntity), With<InstanceMaterialData>>,
+    mut transparent_render_phases: ResMut<ViewSortedRenderPhases<Transparent3d>>,
+    views: Query<(&ExtractedView, &Msaa)>,
+) {
+    let draw_custom = transparent_3d_draw_functions.read().id::<DrawCustom>();
+
+    for (view, msaa) in &views {
+        let Some(transparent_phase) = transparent_render_phases.get_mut(&view.retained_view_entity)
+        else {
+            continue;
+        };
+
+        let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples());
+
+        let view_key = msaa_key | MeshPipelineKey::from_hdr(view.hdr);
+        let rangefinder = view.rangefinder3d();
+        for (entity, main_entity) in &material_meshes {
+            let Some(mesh_instance) = render_mesh_instances.render_mesh_queue_data(*main_entity)
+            else {
+                continue;
+            };
+            let Some(mesh) = meshes.get(mesh_instance.mesh_asset_id) else {
+                continue;
+            };
+            let key =
+                view_key | MeshPipelineKey::from_primitive_topology(mesh.primitive_topology());
+            let pipeline = pipelines
+                .specialize(&pipeline_cache, &custom_pipeline, key, &mesh.layout)
+                .unwrap();
+            transparent_phase.add(Transparent3d {
+                entity: (entity, *main_entity),
+                pipeline,
+                draw_function: draw_custom,
+                distance: rangefinder.distance_translation(&mesh_instance.translation),
+                batch_range: 0..1,
+                extra_index: PhaseItemExtraIndex::None,
+                indexed: true,
+            });
+        }
+    }
+}
+
+// dont need to do this
+pub fn prepare_instance_buffers() {}
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy, ShaderType)]

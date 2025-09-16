@@ -8,16 +8,23 @@ use dashmap::DashMap;
 use pad::{AREA, VOL};
 use std::sync::Arc;
 
-use mesher::*;
+pub use mesher::*;
 pub use space::*;
 pub use task::*;
 
-use crate::{block_lib::BlockLibrary, render::alloc_buffer::Allocation, voxel::Voxel};
+use derive_more::{From, Into};
+use nonmax::NonMaxU16;
+
+use crate::{block_lib::BlockLibrary, render::alloc_buffer::Allocation};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Into)]
+pub struct VoxelIndex(pub NonMaxU16);
 
 pub struct Chunk {
-    pub voxels: [Option<Voxel>; VOL],
-    pub opaque_mask: [u64; AREA],
-    pub transparent_mask: [u64; AREA],
+    voxels: [Option<VoxelIndex>; VOL],
+    some_mask: [u64; AREA],
+    // opaque_mask: [u64; AREA], // implicitly opaque if some & !transparent
+    transparent_mask: [u64; AREA],
 }
 
 impl Chunk {
