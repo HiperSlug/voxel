@@ -3,46 +3,66 @@ pub mod mesher;
 pub mod space;
 pub mod task;
 
-use bevy::prelude::*;
-use dashmap::DashMap;
-use pad::{AREA, VOL};
-use std::sync::Arc;
+use enum_map::enum_map;
+use nonmax::NonMaxU16;
 
 pub use mesher::*;
 pub use space::*;
 pub use task::*;
 
-use derive_more::{From, Into};
-use nonmax::NonMaxU16;
+use space::pad::{AREA, VOL};
 
-use crate::{block_lib::BlockLibrary, render::alloc_buffer::Allocation};
+use crate::{alloc_buffer::Allocation, signed_axis::FaceMap};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Into)]
-pub struct VoxelIndex(pub NonMaxU16);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Voxel(pub NonMaxU16);
+
+impl Voxel {
+    #[inline]
+    pub fn is_transparent(&self) -> bool {
+        // TODO
+        false
+    }
+
+    #[inline]
+    pub fn textures(&self) -> FaceMap<u32> {
+        // TODO
+        enum_map! {
+            _ => 0
+        }
+    }
+}
 
 pub struct Chunk {
-    voxels: [Option<VoxelIndex>; VOL],
-    some_mask: [u64; AREA],
-    // opaque_mask: [u64; AREA], // implicitly opaque if some & !transparent
+    voxel_opts: [Option<Voxel>; VOL],
+    opaque_mask: [u64; AREA],
     transparent_mask: [u64; AREA],
 }
 
 impl Chunk {
     pub const EMPTY: Self = Self {
-        voxels: [None; VOL],
+        voxel_opts: [None; VOL],
         opaque_mask: [0; AREA],
         transparent_mask: [0; AREA],
     };
 
-    pub fn set(&mut self, pos: UVec3, voxel_opt: Option<Voxel>, block_library: &BlockLibrary) {
-        let index = pad::linearize(pos);
-        self.voxels[index] = voxel_opt;
-        self.update_masks(pos, voxel_opt, block_library);
-    }
+    pub fn set(&mut self, vol_xyz: usize, voxel_opt: Option<Voxel>) {
+        self.voxel_opts[vol_xyz] = voxel_opt;
 
-    pub fn get(&self, pos: UVec3) -> Option<Voxel> {
-        let index = pad::linearize(pos);
-        self.voxels[index]
+        let (x, area_yz) = pad::vol_to_area(vol_xyz);
+
+        let mask = !(1 << x);
+
+        self.opaque_mask[area_yz] &= mask;
+        self.transparent_mask[area_yz] &= mask;
+
+        if let Some(voxel) = voxel_opt {
+            let is_transparent = voxel.is_transparent();
+            let is_opaque = !is_transparent;
+
+            self.opaque_mask[area_yz] |= (is_opaque as u64) << x;
+            self.transparent_mask[area_yz] |= (is_transparent as u64) << x;
+        }
     }
 }
 
@@ -51,9 +71,6 @@ impl Default for Chunk {
         Self::EMPTY
     }
 }
-
-#[derive(Component, Default, Clone, Deref)]
-pub struct ChunkMap(pub Arc<DashMap<ChunkPos, Chunk>>);
 
 pub struct ChunkMesh {
     allocation: Allocation<VoxelQuad>,

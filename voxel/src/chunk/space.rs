@@ -32,6 +32,13 @@ pub mod pad {
     {
         Shape::delinearize(i as u32).into()
     }
+
+    #[inline]
+    pub const fn vol_to_area(vol_xyz: usize) -> (usize, usize) {
+        let x = vol_xyz & (LEN - 1);
+        let area_yz = vol_xyz >> BITS;
+        (x, area_yz)
+    }
 }
 
 pub mod unpad {

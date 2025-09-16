@@ -1,12 +1,12 @@
-use bevy::math::{IVec3, UVec3};
+use bevy::math::IVec3;
 use bytemuck::{Pod, Zeroable};
 use enum_map::enum_map;
 use std::ops::Range;
 
-use crate::{block_lib::BlockLibrary, math::signed_axis::*, voxel::Voxel};
+use crate::signed_axis::*;
 
 use super::{
-    Chunk, chunk_origin,
+    Chunk, chunk_origin, Voxel, 
     pad::{AREA, LEN, VOL},
     pad::{SHIFT_0, SHIFT_1, SHIFT_2, STRIDE_0, STRIDE_1, STRIDE_2},
 };
@@ -15,15 +15,11 @@ use super::{
 // area_*: Y - `SHIFT_0`, Z - `SHIFT_1`,
 // * is replaced by whichever axes are present
 
-// `transparent_mask` and `opaque_mask` must point at `Some(voxel)`.
-// `build_masks` must be called on init, `update_masks` must be
-// called when `voxels` changes.
-
 const UNPADDED_MASK: u64 = !(1 << 63 | 1);
 
 pub struct Mesher {
     quads: Vec<VoxelQuad>,
-    visible_masks: Box<SignedAxisMap<[u64; AREA]>>,
+    visible_masks: Box<FaceMap<[u64; AREA]>>,
     upward_merged: Box<[u8; LEN]>,
     forward_merged: Box<[u8; AREA]>,
 }
@@ -47,14 +43,14 @@ impl Mesher {
 
     fn face_culling(
         &mut self,
-        voxels: &[Option<Voxel>; VOL],
+        voxel_opts: &[Option<Voxel>; VOL],
         opaque_mask: &[u64; AREA],
         transparent_mask: &[u64; AREA],
     ) {
-        for signed_axis in SignedAxis::ALL {
-            let visible_mask = &mut self.visible_masks[signed_axis];
+        for face in Face::ALL {
+            let visible_mask = &mut self.visible_masks[face];
 
-            let vol_adj_offset = match signed_axis {
+            let vol_adj_offset = match face {
                 PosX => STRIDE_0 as isize,
                 NegX => -(STRIDE_0 as isize),
                 PosY => STRIDE_1 as isize,
@@ -83,7 +79,7 @@ impl Mesher {
                         continue;
                     }
 
-                    let adj_opaque = match signed_axis {
+                    let adj_opaque = match face {
                         PosX => opaque >> 1,
                         NegX => opaque << 1,
                         PosY => opaque_mask[area_yz + STRIDE_0],
@@ -103,10 +99,10 @@ impl Mesher {
                         let vol_x = x << SHIFT_0;
                         let vol_xyz = vol_x | vol_yz;
 
-                        let voxel_opt = voxels[vol_xyz];
+                        let voxel_opt = voxel_opts[vol_xyz];
 
                         let adj_index = (vol_xyz as isize + vol_adj_offset) as usize;
-                        let adj_voxel_opt = voxels[adj_index];
+                        let adj_voxel_opt = voxel_opts[adj_index];
 
                         visible_mask[area_yz] |= ((voxel_opt != adj_voxel_opt) as u64) << x;
                     }
@@ -117,14 +113,13 @@ impl Mesher {
 
     fn face_merging(
         &mut self,
-        voxels: &[Option<Voxel>; VOL],
+        voxel_opts: &[Option<Voxel>; VOL],
         chunk_origin: IVec3,
-        block_library: &BlockLibrary,
     ) -> VoxelQuadOffsets {
         let mut offsets = [0; 7];
 
-        for (index, signed_axis) in [PosX, PosY, PosZ, NegX, NegY, NegZ].into_iter().enumerate() {
-            let visible_mask = &self.visible_masks[signed_axis];
+        for (index, face) in [PosX, PosY, PosZ, NegX, NegY, NegZ].into_iter().enumerate() {
+            let visible_mask = &self.visible_masks[face];
 
             for z in 1..LEN - 1 {
                 let vol_z = z << SHIFT_2;
@@ -143,7 +138,7 @@ impl Mesher {
                         continue;
                     }
 
-                    match signed_axis {
+                    match face {
                         PosX | NegX => {
                             let upward_column = visible_mask[area_yz + STRIDE_0];
 
@@ -158,12 +153,12 @@ impl Mesher {
 
                                 let vol_xy = vol_x | vol_y;
 
-                                let voxel_opt = voxels[vol_xyz];
+                                let voxel_opt = voxel_opts[vol_xyz];
                                 let voxel = voxel_opt.unwrap();
 
                                 if self.upward_merged[vol_x] == 0
                                     && (forward_column >> x) & 1 != 0
-                                    && voxel_opt == voxels[vol_xyz + STRIDE_2]
+                                    && voxel_opt == voxel_opts[vol_xyz + STRIDE_2]
                                 {
                                     self.forward_merged[vol_xy] += 1;
                                     continue;
@@ -172,7 +167,7 @@ impl Mesher {
                                 if (upward_column >> x) & 1 != 0
                                     && self.forward_merged[vol_xy]
                                         == self.forward_merged[vol_xy + STRIDE_1]
-                                    && voxel_opt == voxels[vol_xyz + STRIDE_1]
+                                    && voxel_opt == voxel_opts[vol_xyz + STRIDE_1]
                                 {
                                     self.forward_merged[vol_xy] = 0;
                                     self.upward_merged[vol_x] += 1;
@@ -190,9 +185,9 @@ impl Mesher {
                                 self.upward_merged[vol_x] = 0;
 
                                 let pos = chunk_origin + IVec3::new(x, y, z);
-                                let texture_index = block_library[voxel].textures[signed_axis];
+                                let texture_index = voxel.textures()[face];
 
-                                let quad = VoxelQuad::new(pos, texture_index, w, h, signed_axis);
+                                let quad = VoxelQuad::new(pos, texture_index, w, h, face);
                                 self.quads.push(quad);
                             }
                         }
@@ -207,11 +202,11 @@ impl Mesher {
 
                                 let vol_xy = vol_x | vol_y;
 
-                                let voxel_opt = voxels[vol_xyz];
+                                let voxel_opt = voxel_opts[vol_xyz];
                                 let voxel = voxel_opt.unwrap();
 
                                 if (forward_column >> x) & 1 != 0
-                                    && voxel_opt == voxels[vol_xyz + STRIDE_2]
+                                    && voxel_opt == voxel_opts[vol_xyz + STRIDE_2]
                                 {
                                     self.forward_merged[vol_xy] += 1;
                                     column &= column - 1;
@@ -226,7 +221,7 @@ impl Mesher {
                                     if (column >> right) & 1 == 0
                                         || self.forward_merged[vol_xy]
                                             != self.forward_merged[r_vol_xy]
-                                        || voxel_opt != voxels[r_vol_xy | vol_z]
+                                        || voxel_opt != voxel_opts[r_vol_xy | vol_z]
                                     {
                                         break;
                                     }
@@ -246,9 +241,9 @@ impl Mesher {
                                 self.forward_merged[vol_xy] = 0;
 
                                 let pos = chunk_origin + IVec3::new(x, y, z);
-                                let texture_index = block_library[voxel].textures[signed_axis];
+                                let texture_index = voxel.textures()[face];
 
-                                let quad = VoxelQuad::new(pos, texture_index, w, h, signed_axis);
+                                let quad = VoxelQuad::new(pos, texture_index, w, h, face);
                                 self.quads.push(quad);
                             }
                         }
@@ -261,11 +256,11 @@ impl Mesher {
                                 let vol_x = x << SHIFT_0;
                                 let vol_xyz = vol_x | vol_yz;
 
-                                let voxel_opt = voxels[vol_xyz];
+                                let voxel_opt = voxel_opts[vol_xyz];
                                 let voxel = voxel_opt.unwrap();
 
                                 if (upward_column >> x) & 1 != 0
-                                    && voxel_opt == voxels[vol_xyz + STRIDE_1]
+                                    && voxel_opt == voxel_opts[vol_xyz + STRIDE_1]
                                 {
                                     self.upward_merged[vol_x] += 1;
                                     column &= column - 1;
@@ -279,7 +274,7 @@ impl Mesher {
                                         || voxel_opt != {
                                             let vol_x = right << SHIFT_0;
                                             let vol_xyz = vol_x | vol_yz;
-                                            voxels[vol_xyz]
+                                            voxel_opts[vol_xyz]
                                         }
                                     {
                                         break;
@@ -300,9 +295,9 @@ impl Mesher {
                                 self.upward_merged[vol_x] = 0;
 
                                 let pos = chunk_origin + IVec3::new(x, y, z);
-                                let texture_index = block_library[voxel].textures[signed_axis];
+                                let texture_index = voxel.textures()[face];
 
-                                let quad = VoxelQuad::new(pos, texture_index, w, h, signed_axis);
+                                let quad = VoxelQuad::new(pos, texture_index, w, h, face);
                                 self.quads.push(quad);
                             }
                         }
@@ -319,76 +314,20 @@ impl Mesher {
         &mut self,
         chunk: &Chunk,
         chunk_pos: IVec3,
-        block_library: &BlockLibrary,
     ) -> (&[VoxelQuad], VoxelQuadOffsets) {
         let Chunk {
-            voxels,
+            voxel_opts,
             opaque_mask,
             transparent_mask,
         } = chunk;
 
         let chunk_origin = chunk_origin(chunk_pos);
 
-        self.face_culling(voxels, opaque_mask, transparent_mask);
+        self.face_culling(voxel_opts, opaque_mask, transparent_mask);
 
-        let voxel_quad_offsets = self.face_merging(voxels, chunk_origin, block_library);
+        let voxel_quad_offsets = self.face_merging(voxel_opts, chunk_origin);
 
         (&self.quads, voxel_quad_offsets)
-    }
-}
-
-impl Chunk {
-    pub fn build_masks(&mut self, block_library: &BlockLibrary) {
-        for z in 0..LEN {
-            let cub_z = z << SHIFT_2;
-
-            let area_z = z << SHIFT_1;
-
-            for y in 0..LEN {
-                let cub_y = y << SHIFT_1;
-                let cub_yz = cub_y | cub_z;
-
-                let area_y = y << SHIFT_0;
-                let area_yz = area_y | area_z;
-
-                for x in 0..LEN {
-                    let cub_x = x << SHIFT_0;
-                    let cub_xyz = cub_x | cub_yz;
-
-                    if let Some(voxel) = self.voxels[cub_xyz] {
-                        let is_transparent = block_library[voxel].is_transparent;
-                        let is_opaque = !is_transparent;
-
-                        self.opaque_mask[area_yz] |= (is_opaque as u64) << x;
-                        self.transparent_mask[area_yz] |= (is_transparent as u64) << x;
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn update_masks(
-        &mut self,
-        pos: UVec3,
-        voxel_opt: Option<Voxel>,
-        block_library: &BlockLibrary,
-    ) {
-        let area_y = (pos.y as usize) << SHIFT_0;
-        let area_z = (pos.z as usize) << SHIFT_1;
-        let area_yz = area_y | area_z;
-
-        let mask = !(1 << pos.x);
-
-        self.opaque_mask[area_yz] &= mask;
-        self.transparent_mask[area_yz] &= mask;
-
-        if let Some(voxel) = voxel_opt {
-            let is_transparent = block_library[voxel].is_transparent;
-            let is_opaque = !is_transparent;
-
-            self.opaque_mask[area_yz] |= (is_opaque as u64) << pos.x;
-            self.transparent_mask[area_yz] |= (is_transparent as u64) << pos.x;
-        }
     }
 }
 
@@ -411,10 +350,10 @@ impl VoxelQuad {
         texture_index: u32,
         w: u32,
         h: u32,
-        signed_axis: SignedAxis,
+        face: Face,
     ) -> Self {
         // this must match the shader
-        let signed_axis = match signed_axis {
+        let face = match face {
             PosX => 0,
             PosY => 1,
             PosZ => 2,
@@ -425,7 +364,7 @@ impl VoxelQuad {
 
         Self {
             pos,
-            data: signed_axis << 28 | h << 22 | w << 16 | texture_index,
+            data: face << 28 | h << 22 | w << 16 | texture_index,
         }
     }
 }
@@ -433,9 +372,9 @@ impl VoxelQuad {
 pub struct VoxelQuadOffsets([u32; 7]);
 
 impl VoxelQuadOffsets {
-    pub fn range(&self, signed_axis: SignedAxis) -> Range<u32> {
+    pub fn range(&self, face: Face) -> Range<u32> {
         // must match the ordering in `face_merging`
-        match signed_axis {
+        match face {
             PosX => self.0[0]..self.0[1],
             PosY => self.0[1]..self.0[2],
             PosZ => self.0[2]..self.0[3],
