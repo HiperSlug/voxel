@@ -208,7 +208,6 @@ impl Default for AllocBufferSettings {
     }
 }
 
-#[derive(Default)]
 pub struct AllocBufferPlugin<T> {
     pub settings: AllocBufferSettings,
     _marker: PhantomData<T>,
@@ -218,6 +217,15 @@ impl<T> AllocBufferPlugin<T> {
     pub fn new(settings: AllocBufferSettings) -> Self {
         Self {
             settings,
+            _marker: default(),
+        }
+    }
+}
+
+impl<T> Default for AllocBufferPlugin<T> {
+    fn default() -> Self {
+        Self {
+            settings: default(),
             _marker: default(),
         }
     }

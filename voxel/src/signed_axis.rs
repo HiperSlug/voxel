@@ -16,12 +16,5 @@ pub enum SignedAxis {
 }
 
 impl SignedAxis {
-    pub const ALL: [Self; 6] = [
-        PosX,
-        PosY,
-        PosZ,
-        NegX,
-        NegY,
-        NegZ,
-    ];
+    pub const ALL: [Self; 6] = [PosX, PosY, PosZ, NegX, NegY, NegZ];
 }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["main", "playground", "voxel"]
+members = [ "instancing","voxel"]
 
 [profile.dev]
 opt-level = 1

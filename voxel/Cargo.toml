@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 bevy.workspace = true
+bevy_flycam.workspace = true
 
 anyhow = "1.0.98"
 fastnoise-lite = "1.1.1"

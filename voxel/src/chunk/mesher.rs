@@ -6,7 +6,7 @@ use std::ops::Range;
 use crate::signed_axis::*;
 
 use super::{
-    Chunk, chunk_origin, Voxel, 
+    Chunk, Voxel, chunk_origin,
     pad::{AREA, LEN, VOL},
     pad::{SHIFT_0, SHIFT_1, SHIFT_2, STRIDE_0, STRIDE_1, STRIDE_2},
 };
@@ -310,11 +310,7 @@ impl Mesher {
         VoxelQuadOffsets(offsets)
     }
 
-    pub fn mesh(
-        &mut self,
-        chunk: &Chunk,
-        chunk_pos: IVec3,
-    ) -> (&[VoxelQuad], VoxelQuadOffsets) {
+    pub fn mesh(&mut self, chunk: &Chunk, chunk_pos: IVec3) -> (&[VoxelQuad], VoxelQuadOffsets) {
         let Chunk {
             voxel_opts,
             opaque_mask,
@@ -345,13 +341,7 @@ pub struct VoxelQuad {
 
 impl VoxelQuad {
     #[inline]
-    pub const fn new(
-        pos: IVec3,
-        texture_index: u32,
-        w: u32,
-        h: u32,
-        face: Face,
-    ) -> Self {
+    pub const fn new(pos: IVec3, texture_index: u32, w: u32, h: u32, face: Face) -> Self {
         // this must match the shader
         let face = match face {
             PosX => 0,
